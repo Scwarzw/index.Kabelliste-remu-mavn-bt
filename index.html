@@ -147,57 +147,84 @@
 <body>
 <div id="app"></div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
+import { getDatabase, ref, get, remove, push, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+
 (function(){
   "use strict";
 
-  /* ---------------- storage helpers ---------------- */
-  // GitHub Pages stellt kein window.storage bereit. Deshalb verwenden wir
-  // localStorage: Die Daten bleiben auch nach Reload/Browser-Neustart erhalten.
-  const STORAGE_PREFIX = "materiallager:v1:";
+  /* ---------------- Firebase / storage ---------------- */
+  // WICHTIG: Diese Werte einmal durch die Firebase-Konfiguration deines Projekts ersetzen.
+  // Firebase Console -> Projekteinstellungen -> Deine Apps -> Web-App -> firebaseConfig
+  const firebaseConfig = {
+    apiKey: "HIER_API_KEY_EINTRAGEN",
+    authDomain: "HIER_PROJECT_ID.firebaseapp.com",
+    databaseURL: "https://HIER_PROJECT_ID-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "HIER_PROJECT_ID",
+    storageBucket: "HIER_PROJECT_ID.firebasestorage.app",
+    messagingSenderId: "HIER_MESSAGING_SENDER_ID",
+    appId: "HIER_APP_ID"
+  };
 
-  function storageKey(key){ return STORAGE_PREFIX + key; }
+  const DB_ROOT = "materiallager";
+  const LOCAL_PREFIX = "materiallager:device:v2:";
+  let firebaseApp = null;
+  let db = null;
+  let auth = null;
+  let movementsUnsubscribe = null;
+  let connectionUnsubscribe = null;
 
-  async function sGet(key, shared){
+  function firebaseConfigured(){
+    return firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("HIER_") &&
+           firebaseConfig.projectId && !firebaseConfig.projectId.startsWith("HIER_") &&
+           firebaseConfig.databaseURL && !firebaseConfig.databaseURL.includes("HIER_PROJECT_ID");
+  }
+
+  function localGet(key){
     try{
-      const raw = localStorage.getItem(storageKey(key));
+      const raw = localStorage.getItem(LOCAL_PREFIX + key);
       return raw === null ? null : JSON.parse(raw);
-    }catch(e){
-      console.error("localStorage.get failed", key, e);
-      return null;
-    }
+    }catch(e){ console.error("localStorage.get failed", key, e); return null; }
   }
-  async function sSet(key, value, shared){
-    try{
-      localStorage.setItem(storageKey(key), JSON.stringify(value));
-      return true;
-    }catch(e){
-      console.error("localStorage.set failed", key, e);
-      return null;
-    }
+  function localSet(key, value){
+    try{ localStorage.setItem(LOCAL_PREFIX + key, JSON.stringify(value)); return true; }
+    catch(e){ console.error("localStorage.set failed", key, e); return false; }
   }
-  async function sList(prefix, shared){
-    try{
-      const wanted = storageKey(prefix);
-      const keys = [];
-      for(let i=0; i<localStorage.length; i++){
-        const fullKey = localStorage.key(i);
-        if(fullKey && fullKey.startsWith(wanted)) keys.push(fullKey.slice(STORAGE_PREFIX.length));
-      }
-      return keys;
-    }catch(e){
-      console.error("localStorage.list failed", prefix, e);
-      return [];
-    }
-  }
-  async function sDelete(key, shared){
-    try{
-      localStorage.removeItem(storageKey(key));
-      return true;
-    }catch(e){
-      console.error("localStorage.delete failed", key, e);
-      return null;
-    }
+
+  async function initFirebase(){
+    if(!firebaseConfigured()) return false;
+    firebaseApp = initializeApp(firebaseConfig);
+    db = getDatabase(firebaseApp);
+    auth = getAuth(firebaseApp);
+
+    // Jedes Gerät meldet sich unsichtbar anonym an. Dadurch können die
+    // Datenbankregeln Schreib-/Lesezugriff auf angemeldete Clients begrenzen.
+    await signInAnonymously(auth);
+    state.firebaseReady = true;
+
+    // Echter Live-Listener: Wird aufgerufen, sobald irgendein Gerät eine
+    // Entnahme/Rückgabe speichert oder der Verlauf zurückgesetzt wird.
+    const movementsRef = ref(db, DB_ROOT + "/movements");
+    movementsUnsubscribe = onValue(movementsRef, (snapshot)=>{
+      const raw = snapshot.val() || {};
+      state.movKeyCache = raw;
+      state.movements = Object.entries(raw).map(([id, value])=>({ id, ...value }))
+        .sort((a,b)=> (b.serverTs || b.ts || 0) - (a.serverTs || a.ts || 0));
+      if(state.ready) render();
+    }, (error)=>{
+      console.error("Firebase movements listener failed", error);
+      state.firebaseError = error.message || String(error);
+      if(state.ready) render();
+    });
+
+    // Verbindung zur Realtime Database anzeigen.
+    connectionUnsubscribe = onValue(ref(db, ".info/connected"), (snapshot)=>{
+      state.online = snapshot.val() === true;
+      if(state.ready) render();
+    });
+    return true;
   }
 
   /* ---------------- real inventory data ---------------- */
@@ -335,7 +362,7 @@
     boxes: [], cables: [], movements: [], movKeyCache: {},
     user: "", view: "dashboard", activeBoxId: null, activeCableId: null,
     search: "", filters: { box:"", category:"", user:"" }, selection: {},
-    ready: false
+    ready: false, firebaseReady: false, online: false, firebaseError: ""
   };
 
   function allCategories(){ return Array.from(new Set(state.cables.map(c=>c.category))).sort((a,b)=>a.localeCompare(b,'de')); }
@@ -348,27 +375,21 @@
   function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return Math.abs(h); }
   function chipStyle(cat){ const p = CHIP_PALETTE[hashStr(cat) % CHIP_PALETTE.length]; return "background:"+p.bg+";color:"+p.fg+";"; }
 
-  /* ---------------- data loading & seeding ---------------- */
-  async function loadBoxesAndCables(){
-    let boxes = await sGet("boxes", true);
-    let cables = await sGet("cables", true);
-    if(!boxes || !cables){
-      boxes = demoBoxes(); cables = demoCables();
-      await sSet("boxes", boxes, true);
-      await sSet("cables", cables, true);
-    }
-    state.boxes = boxes; state.cables = cables;
+  /* ---------------- data loading & live sync ---------------- */
+  function loadBoxesAndCables(){
+    // Kisten/Materialdefinitionen sind Bestandteil dieser HTML-Datei.
+    // Der veränderliche Bestand ergibt sich aus den zentralen Firebase-Bewegungen.
+    state.boxes = demoBoxes();
+    state.cables = demoCables();
   }
 
   async function syncMovements(){
-    const keys = await sList("movements:", true);
-    const newKeys = keys.filter(k => !(k in state.movKeyCache));
-    if(newKeys.length){
-      const vals = await Promise.all(newKeys.map(k => sGet(k, true)));
-      newKeys.forEach((k,i) => { if(vals[i]) state.movKeyCache[k] = vals[i]; });
-    }
-    Object.keys(state.movKeyCache).forEach(k => { if(!keys.includes(k)) delete state.movKeyCache[k]; });
-    state.movements = Object.values(state.movKeyCache).sort((a,b)=> b.ts - a.ts);
+    if(!db || !state.firebaseReady) return;
+    const snapshot = await get(ref(db, DB_ROOT + "/movements"));
+    const raw = snapshot.val() || {};
+    state.movKeyCache = raw;
+    state.movements = Object.entries(raw).map(([id, value])=>({ id, ...value }))
+      .sort((a,b)=> (b.serverTs || b.ts || 0) - (a.serverTs || a.ts || 0));
   }
 
   function currentStock(cableId){
@@ -390,16 +411,18 @@
   function boxCableCount(boxId){ return state.cables.filter(c=>c.boxId===boxId).length; }
 
   async function recordMovement(cableId, type, qty, user){
+    if(!db || !state.firebaseReady) throw new Error("Firebase ist nicht verbunden.");
     const now = new Date();
-    const key = "movements:" + Date.now() + "_" + Math.random().toString(36).slice(2,8);
     const val = {
       cableId, type, qty, user: user || "",
-      date: now.toLocaleDateString("de-CH"), time: now.toLocaleTimeString("de-CH", {hour:"2-digit", minute:"2-digit"}),
-      ts: Date.now()
+      date: now.toLocaleDateString("de-CH"),
+      time: now.toLocaleTimeString("de-CH", {hour:"2-digit", minute:"2-digit"}),
+      ts: Date.now(),
+      serverTs: serverTimestamp()
     };
-    await sSet(key, val, true);
-    state.movKeyCache[key] = val;
-    state.movements = Object.values(state.movKeyCache).sort((a,b)=> b.ts - a.ts);
+    await push(ref(db, DB_ROOT + "/movements"), val);
+    // Kein manuelles state-Update nötig: der onValue-Live-Listener liefert
+    // die Änderung automatisch an alle geöffneten Geräte.
   }
 
   const ICONS = {
@@ -449,7 +472,7 @@
         <div class="topbar-row">
           <div class="brand">
             <div class="brand-mark">M</div>
-            <div><h1>Materiallager</h1><small><span class="sync-dot"></span>Bestand lokal gespeichert</small></div>
+            <div><h1>Materiallager</h1><small><span class="sync-dot" style="background:${state.online?"var(--ok)":"var(--danger)"}"></span>${!firebaseConfigured()?"Firebase noch nicht eingerichtet":(state.online?"Firebase verbunden · live":"Keine Live-Verbindung")}</small></div>
           </div>
           <button class="icon-btn" data-nav="settings" aria-label="Einstellungen">${ICONS.settings}</button>
         </div>
@@ -704,7 +727,7 @@
       <h2 class="section-title">Dein Gerät</h2>
       <p class="field-label">Dein Name (für Entnahmen &amp; Auffüllen)</p>
       <input class="kicker-input" id="userNameInput" placeholder="z. B. M. Keller" value="${esc(state.user)}">
-      <p style="font-size:12px;color:var(--muted);margin-top:-4px;">Wird nur auf diesem Gerät gespeichert und optional bei jeder Buchung mitgeschrieben.</p>
+      <p style="font-size:12px;color:var(--muted);margin-top:-4px;">Der Name bleibt nur auf diesem Gerät gespeichert; bei jeder Buchung wird er in der gemeinsamen Historie mitgeschrieben.</p>
 
       <div class="subhead"><h3 class="section-title" style="font-size:17px;margin:0;">Kisten &amp; QR-Codes</h3></div>
       ${state.boxes.map(b=>h`
@@ -720,7 +743,7 @@
       `).join("")}
 
       <div class="subhead"><h3 class="section-title" style="font-size:17px;margin:0;">Daten</h3></div>
-      <p style="font-size:12.5px;color:var(--muted);">Setzt alle Kisten, das Material und den kompletten Bewegungsverlauf in diesem Browser auf den Ausgangsbestand zurück.</p>
+      <p style="font-size:12.5px;color:var(--muted);">Löscht den kompletten gemeinsamen Bewegungsverlauf in Firebase. Danach gilt für alle Geräte wieder der Ausgangsbestand aus dieser HTML-Datei.</p>
       <button class="btn btn-outline btn-sm" data-action="reset-demo" style="color:var(--danger); border-color:var(--danger);">Auf Ausgangsbestand zurücksetzen</button>
     `;
   }
@@ -761,7 +784,7 @@
       <div class="view">${body}</div>
       ${qrOpenFor ? `<div class="view" style="padding-top:0;">${qrModal(qrOpenFor)}</div>` : ""}
       ${returnFlowFor ? returnFlowPanel() : ""}
-      <div class="footer-note">Bestand wird in diesem Browser dauerhaft gespeichert · Reload bleibt erhalten</div>
+      <div class="footer-note">Bestand wird über Firebase geräteübergreifend live synchronisiert</div>
       ${nav()}
     `;
     bindEvents();
@@ -846,9 +869,15 @@
       const cableId = document.getElementById("returnCableSelect").value;
       const qty = Math.max(1, parseInt(document.getElementById("returnQty").value || "1", 10));
       confirmReturn.disabled = true; confirmReturn.textContent = "Wird gespeichert …";
-      await recordMovement(cableId, "rueckgabe", qty, state.user);
-      returnFlowFor = null; render();
-      showToast("Aufgefüllt: +" + qty + " Stück");
+      try{
+        await recordMovement(cableId, "rueckgabe", qty, state.user);
+        returnFlowFor = null; render();
+        showToast("Aufgefüllt: +" + qty + " Stück · live gespeichert");
+      }catch(e){
+        console.error(e);
+        confirmReturn.disabled = false; confirmReturn.textContent = "+ Zurückbuchen";
+        showToast("Speichern fehlgeschlagen: " + (e.message || e));
+      }
     });
 
     app.querySelectorAll("[data-select]").forEach(chk=>{
@@ -874,9 +903,15 @@
       const entries = Object.entries(state.selection).filter(([id,qty])=> qty>0 && state.cables.some(c=>c.id===id && c.boxId===state.activeBoxId));
       if(!entries.length) return;
       confirmBtn.disabled = true; confirmBtn.textContent = "Wird gespeichert …";
-      for(const [cableId, qty] of entries){ await recordMovement(cableId, "entnahme", qty, state.user); }
-      state.selection = {}; render();
-      showToast("Entnahme bestätigt — Bestand aktualisiert");
+      try{
+        for(const [cableId, qty] of entries){ await recordMovement(cableId, "entnahme", qty, state.user); }
+        state.selection = {}; render();
+        showToast("Entnahme bestätigt · live gespeichert");
+      }catch(e){
+        console.error(e);
+        confirmBtn.disabled = false; confirmBtn.textContent = "Entnahme bestätigen";
+        showToast("Speichern fehlgeschlagen: " + (e.message || e));
+      }
     });
 
     const search = document.getElementById("globalSearch");
@@ -899,30 +934,31 @@
     const userInput = document.getElementById("userNameInput");
     if(userInput) userInput.addEventListener("change", async ()=>{
       state.user = userInput.value.trim();
-      await sSet("current-user", state.user, false);
+      localSet("current-user", state.user);
       showToast("Name gespeichert");
     });
 
     const resetBtn = document.querySelector('[data-action="reset-demo"]');
     if(resetBtn) resetBtn.addEventListener("click", async ()=>{
-      if(!confirm("Wirklich auf den Ausgangsbestand zurücksetzen? Der komplette lokale Verlauf in diesem Browser geht dabei verloren.")) return;
+      if(!confirm("Wirklich für ALLE Geräte auf den Ausgangsbestand zurücksetzen? Der komplette gemeinsame Firebase-Verlauf wird gelöscht.")) return;
       resetBtn.disabled = true; resetBtn.textContent = "Setze zurück …";
-      const boxes = demoBoxes(); const cables = demoCables();
-      await sSet("boxes", boxes, true);
-      await sSet("cables", cables, true);
-      state.boxes = boxes; state.cables = cables;
-      const existingKeys = await sList("movements:", true);
-      await Promise.all(existingKeys.map(k => sDelete(k, true)));
-      state.movKeyCache = {}; state.movements = [];
-      render();
-      showToast("Zurückgesetzt auf Ausgangsbestand");
+      try{
+        if(!db || !state.firebaseReady) throw new Error("Firebase ist nicht verbunden.");
+        await remove(ref(db, DB_ROOT + "/movements"));
+        state.movKeyCache = {}; state.movements = [];
+        render();
+        showToast("Für alle Geräte auf Ausgangsbestand zurückgesetzt");
+      }catch(e){
+        console.error(e);
+        resetBtn.disabled = false; resetBtn.textContent = "Auf Ausgangsbestand zurücksetzen";
+        showToast("Reset fehlgeschlagen: " + (e.message || e));
+      }
     });
   }
 
   async function init(){
-    await loadBoxesAndCables();
-    await syncMovements();
-    state.user = (await sGet("current-user", false)) || "";
+    loadBoxesAndCables();
+    state.user = localGet("current-user") || "";
 
     const params = new URLSearchParams(location.search);
     const kiste = params.get("kiste");
@@ -930,21 +966,28 @@
       state.activeBoxId = kiste; state.view = "boxDetail";
     }
 
+    // UI bereits anzeigen, damit bei fehlender Konfiguration eine klare Meldung erscheint.
     state.ready = true;
     render();
 
-    setInterval(async ()=>{
-      await syncMovements();
-      if(["dashboard","cables","cableDetail","movements","boxDetail"].includes(state.view)){ render(); }
-    }, 8000);
-  }
+    if(!firebaseConfigured()){
+      showToast("Firebase noch nicht eingerichtet – Konfiguration in index.html eintragen");
+      return;
+    }
 
-  window.addEventListener("storage", async (event)=>{
-    if(!event.key || !event.key.startsWith(STORAGE_PREFIX)) return;
-    await syncMovements();
-    if(event.key === storageKey("current-user")) state.user = (await sGet("current-user", false)) || "";
-    if(state.ready) render();
-  });
+    try{
+      await initFirebase();
+      await syncMovements();
+      render();
+      showToast("Firebase verbunden · Live-Synchronisierung aktiv");
+    }catch(e){
+      console.error("Firebase initialization failed", e);
+      state.firebaseError = e.message || String(e);
+      state.online = false;
+      render();
+      showToast("Firebase-Verbindung fehlgeschlagen: " + state.firebaseError);
+    }
+  }
 
   init();
 })();
