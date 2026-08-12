@@ -163,7 +163,7 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gst
   // Firebase-Web-API-Key technisch sichtbar; geschützt wird die Datenbank über
   // Authentication, Security Rules und optional App Check.
   const firebaseConfig = {
-    apiKey: "AIzaSyCouo8Fuuv4stEuxgKcLTFt-svCe5gXON4",
+    apiKey: "__FIREBASE_WEB_API_KEY__",
     authDomain: "planning-with-ai-9d831.firebaseapp.com",
     databaseURL: "https://planning-with-ai-9d831-default-rtdb.europe-west1.firebasedatabase.app",
     projectId: "planning-with-ai-9d831",
@@ -176,7 +176,7 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gst
   // Wird ebenfalls beim Deploy eingesetzt. Bleibt der Wert leer, startet die
   // Webseite ohne App Check. App-Check-Enforcement erst aktivieren, nachdem
   // dieser Key eingerichtet und erfolgreich getestet wurde.
-  const APP_CHECK_SITE_KEY = "1:934985638005:web:9356f9b44a0e087780983c";
+  const APP_CHECK_SITE_KEY = "__FIREBASE_APP_CHECK_SITE_KEY__";
 
   const DB_ROOT = "materiallager";
   const LOCAL_PREFIX = "materiallager:device:v2:";
@@ -188,10 +188,10 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gst
   let connectionUnsubscribe = null;
 
   function firebaseConfigured(){
-    return firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("AIzaSyCouo8Fuuv4stEuxgKcLTFt-svCe5gXON4") &&
-           !firebaseConfig.apiKey.startsWith("AIzaSyCouo8Fuuv4stEuxgKcLTFt-svCe5gXON4") &&
-           firebaseConfig.projectId && !firebaseConfig.projectId.startsWith("planning-with-ai-9d831") &&
-           firebaseConfig.databaseURL && !firebaseConfig.databaseURL.includes("planning-with-ai-9d831.firebaseapp.com");
+    return firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("HIER_") &&
+           !firebaseConfig.apiKey.startsWith("__FIREBASE_") &&
+           firebaseConfig.projectId && !firebaseConfig.projectId.startsWith("HIER_") &&
+           firebaseConfig.databaseURL && !firebaseConfig.databaseURL.includes("HIER_PROJECT_ID");
   }
 
   function appCheckConfigured(){
