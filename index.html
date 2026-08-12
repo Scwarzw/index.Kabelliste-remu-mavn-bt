@@ -176,9 +176,9 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
   let connectionUnsubscribe = null;
 
   function firebaseConfigured(){
-    return firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("HIER_") &&
-           firebaseConfig.projectId && !firebaseConfig.projectId.startsWith("HIER_") &&
-           firebaseConfig.databaseURL && !firebaseConfig.databaseURL.includes("HIER_PROJECT_ID");
+    return firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("AIzaSyCouo8Fuuv4stEuxgKcLTFt-svCe5gXON4") &&
+           firebaseConfig.projectId && !firebaseConfig.projectId.startsWith("planning-with-ai-9d831") &&
+           firebaseConfig.databaseURL && !firebaseConfig.databaseURL.includes("planning-with-ai-9d831.firebaseapp.com");
   }
 
   function localGet(key){
