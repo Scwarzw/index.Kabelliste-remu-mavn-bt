@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Materiallager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -149,16 +149,21 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
-import { getDatabase, ref, get, remove, push, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+import { getDatabase, ref, get, push, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app-check.js";
 
 (function(){
   "use strict";
 
   /* ---------------- Firebase / storage ---------------- */
-  // Firebase-Konfiguration für planning-with-ai-9d831
+  // Firebase-Konfiguration für planning-with-ai-9d831.
+  // Der API-Key wird beim GitHub-Pages-Deploy aus einem GitHub Secret eingesetzt.
+  // Dadurch liegt er nicht als Klartext im Repository. Im Browser bleibt ein
+  // Firebase-Web-API-Key technisch sichtbar; geschützt wird die Datenbank über
+  // Authentication, Security Rules und optional App Check.
   const firebaseConfig = {
-    apiKey: "AIzaSyCouo8Fuuv4stEuxgKcLTFt-svCe5gXON4",
+    apiKey: "__FIREBASE_WEB_API_KEY__",
     authDomain: "planning-with-ai-9d831.firebaseapp.com",
     databaseURL: "https://planning-with-ai-9d831-default-rtdb.europe-west1.firebasedatabase.app",
     projectId: "planning-with-ai-9d831",
@@ -167,18 +172,52 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
     appId: "1:934985638005:web:fd330a5ca3eb335580983c"
   };
 
+  // Optional: reCAPTCHA-Enterprise-Site-Key für Firebase App Check.
+  // Wird ebenfalls beim Deploy eingesetzt. Bleibt der Wert leer, startet die
+  // Webseite ohne App Check. App-Check-Enforcement erst aktivieren, nachdem
+  // dieser Key eingerichtet und erfolgreich getestet wurde.
+  const APP_CHECK_SITE_KEY = "__FIREBASE_APP_CHECK_SITE_KEY__";
+
   const DB_ROOT = "materiallager";
   const LOCAL_PREFIX = "materiallager:device:v2:";
   let firebaseApp = null;
   let db = null;
   let auth = null;
+  let appCheck = null;
   let movementsUnsubscribe = null;
   let connectionUnsubscribe = null;
 
   function firebaseConfigured(){
     return firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("AIzaSyCouo8Fuuv4stEuxgKcLTFt-svCe5gXON4") &&
+           !firebaseConfig.apiKey.startsWith("AIzaSyCouo8Fuuv4stEuxgKcLTFt-svCe5gXON4") &&
            firebaseConfig.projectId && !firebaseConfig.projectId.startsWith("planning-with-ai-9d831") &&
            firebaseConfig.databaseURL && !firebaseConfig.databaseURL.includes("planning-with-ai-9d831.firebaseapp.com");
+  }
+
+  function appCheckConfigured(){
+    return APP_CHECK_SITE_KEY && !APP_CHECK_SITE_KEY.startsWith("__FIREBASE_");
+  }
+
+  function friendlyFirebaseError(error){
+    const code = String((error && error.code) || "").toLowerCase();
+    const message = String((error && error.message) || error || "Unbekannter Firebase-Fehler");
+
+    if(code.includes("api-key-not-valid") || message.toLowerCase().includes("api key not valid")){
+      return "Der Firebase API-Key ist ungültig oder wurde blockiert. Bitte einen gültigen Firebase Web API-Key in GitHub Secrets hinterlegen.";
+    }
+    if(code.includes("operation-not-allowed") || message.toLowerCase().includes("operation-not-allowed")){
+      return "Die anonyme Anmeldung ist in Firebase Authentication nicht aktiviert.";
+    }
+    if(code.includes("network-request-failed")){
+      return "Firebase ist momentan nicht erreichbar. Bitte Internetverbindung prüfen.";
+    }
+    if(code.includes("permission-denied") || message.toLowerCase().includes("permission_denied")){
+      return "Firebase hat den Zugriff abgelehnt. Bitte die Realtime-Database-Regeln prüfen.";
+    }
+    if(message.includes("API_KEY_SERVICE_BLOCKED") || message.includes("403")){
+      return "Der API-Key ist für einen benötigten Firebase-Dienst gesperrt. Bitte die API-Einschränkungen des Browser-Keys prüfen.";
+    }
+    return message;
   }
 
   function localGet(key){
@@ -195,12 +234,24 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
   async function initFirebase(){
     if(!firebaseConfigured()) return false;
     firebaseApp = initializeApp(firebaseConfig);
+
+    // App Check muss vor dem Zugriff auf Firebase-Dienste initialisiert werden.
+    // Ohne eingerichteten Site-Key wird es bewusst übersprungen.
+    if(appCheckConfigured()){
+      appCheck = initializeAppCheck(firebaseApp, {
+        provider: new ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY),
+        isTokenAutoRefreshEnabled: true
+      });
+      state.appCheckReady = true;
+    }
+
     db = getDatabase(firebaseApp);
     auth = getAuth(firebaseApp);
 
-    // Jedes Gerät meldet sich unsichtbar anonym an. Dadurch können die
-    // Datenbankregeln Schreib-/Lesezugriff auf angemeldete Clients begrenzen.
-    await signInAnonymously(auth);
+    // Jedes Gerät meldet sich anonym an. Die UID wird bei jeder Buchung
+    // mitgespeichert und von den Datenbankregeln geprüft.
+    const credential = await signInAnonymously(auth);
+    state.firebaseUid = credential.user.uid;
     state.firebaseReady = true;
 
     // Echter Live-Listener: Wird aufgerufen, sobald irgendein Gerät eine
@@ -214,7 +265,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
       if(state.ready) render();
     }, (error)=>{
       console.error("Firebase movements listener failed", error);
-      state.firebaseError = error.message || String(error);
+      state.firebaseError = friendlyFirebaseError(error);
       if(state.ready) render();
     });
 
@@ -361,7 +412,8 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
     boxes: [], cables: [], movements: [], movKeyCache: {},
     user: "", view: "dashboard", activeBoxId: null, activeCableId: null,
     search: "", filters: { box:"", category:"", user:"" }, selection: {},
-    ready: false, firebaseReady: false, online: false, firebaseError: ""
+    ready: false, firebaseReady: false, online: false, firebaseError: "",
+    firebaseUid: "", appCheckReady: false
   };
 
   function allCategories(){ return Array.from(new Set(state.cables.map(c=>c.category))).sort((a,b)=>a.localeCompare(b,'de')); }
@@ -410,10 +462,25 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
   function boxCableCount(boxId){ return state.cables.filter(c=>c.boxId===boxId).length; }
 
   async function recordMovement(cableId, type, qty, user){
-    if(!db || !state.firebaseReady) throw new Error("Firebase ist nicht verbunden.");
+    if(!db || !state.firebaseReady || !state.firebaseUid) throw new Error("Firebase ist nicht verbunden.");
+
+    const cleanUser = String(user || "").trim();
+    if(cleanUser.length < 2) throw new Error("Bitte zuerst unter Einstellungen deinen Namen eintragen.");
+    if(cleanUser.length > 80) throw new Error("Der eingetragene Name ist zu lang.");
+    if(type !== "entnahme" && type !== "rueckgabe") throw new Error("Ungültiger Buchungstyp.");
+    if(!Number.isInteger(qty) || qty < 1 || qty > 100) throw new Error("Ungültige Menge.");
+
+    const cable = state.cables.find(c=>c.id===cableId);
+    if(!cable) throw new Error("Das ausgewählte Material wurde nicht gefunden.");
+    if(type === "entnahme" && qty > currentStock(cableId)) throw new Error("Die gewünschte Menge ist nicht mehr verfügbar.");
+
     const now = new Date();
     const val = {
-      cableId, type, qty, user: user || "",
+      cableId,
+      type,
+      qty,
+      user: cleanUser,
+      uid: state.firebaseUid,
       date: now.toLocaleDateString("de-CH"),
       time: now.toLocaleTimeString("de-CH", {hour:"2-digit", minute:"2-digit"}),
       ts: Date.now(),
@@ -471,7 +538,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
         <div class="topbar-row">
           <div class="brand">
             <div class="brand-mark">M</div>
-            <div><h1>Materiallager</h1><small><span class="sync-dot" style="background:${state.online?"var(--ok)":"var(--danger)"}"></span>${!firebaseConfigured()?"Firebase noch nicht eingerichtet":(state.online?"Firebase verbunden · live":"Keine Live-Verbindung")}</small></div>
+            <div><h1>Materiallager</h1><small><span class="sync-dot" style="background:${state.online?"var(--ok)":"var(--danger)"}"></span>${!firebaseConfigured()?"Firebase-Key beim Deploy nicht eingesetzt":(state.firebaseError?"Firebase-Fehler":(state.online?"Firebase verbunden · live":"Keine Live-Verbindung"))}</small></div>
           </div>
           <button class="icon-btn" data-nav="settings" aria-label="Einstellungen">${ICONS.settings}</button>
         </div>
@@ -741,9 +808,17 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
         </div>
       `).join("")}
 
-      <div class="subhead"><h3 class="section-title" style="font-size:17px;margin:0;">Daten</h3></div>
-      <p style="font-size:12.5px;color:var(--muted);">Löscht den kompletten gemeinsamen Bewegungsverlauf in Firebase. Danach gilt für alle Geräte wieder der Ausgangsbestand aus dieser HTML-Datei.</p>
-      <button class="btn btn-outline btn-sm" data-action="reset-demo" style="color:var(--danger); border-color:var(--danger);">Auf Ausgangsbestand zurücksetzen</button>
+      <div class="subhead"><h3 class="section-title" style="font-size:17px;margin:0;">Firebase-Status</h3></div>
+      <div class="stat-card" style="margin-bottom:12px;">
+        <div class="label">Verbindung</div>
+        <div style="font-size:13px;font-weight:700;margin-top:4px;">${state.online?"Verbunden":"Nicht verbunden"}</div>
+        <div class="label" style="margin-top:8px;">Anmeldung</div>
+        <div style="font-size:12px;margin-top:3px;word-break:break-all;">${state.firebaseUid?"Anonym angemeldet · "+esc(state.firebaseUid):"Noch nicht angemeldet"}</div>
+        <div class="label" style="margin-top:8px;">App Check</div>
+        <div style="font-size:12px;margin-top:3px;">${state.appCheckReady?"Aktiv":"Noch nicht eingerichtet"}</div>
+        ${state.firebaseError?`<div style="font-size:12px;color:var(--danger);margin-top:10px;">${esc(state.firebaseError)}</div>`:""}
+      </div>
+      <p style="font-size:12.5px;color:var(--muted);">Aus Sicherheitsgründen kann der komplette gemeinsame Verlauf nicht mehr direkt aus der öffentlichen Webseite gelöscht werden. Ein vollständiger Reset erfolgt bei Bedarf in der Firebase-Konsole.</p>
     `;
   }
 
@@ -783,7 +858,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
       <div class="view">${body}</div>
       ${qrOpenFor ? `<div class="view" style="padding-top:0;">${qrModal(qrOpenFor)}</div>` : ""}
       ${returnFlowFor ? returnFlowPanel() : ""}
-      <div class="footer-note">Bestand wird über Firebase geräteübergreifend live synchronisiert</div>
+      <div class="footer-note">Bestand wird über Firebase geräteübergreifend live synchronisiert · Zugriff über Authentication und Security Rules geschützt</div>
       ${nav()}
     `;
     bindEvents();
@@ -875,7 +950,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
       }catch(e){
         console.error(e);
         confirmReturn.disabled = false; confirmReturn.textContent = "+ Zurückbuchen";
-        showToast("Speichern fehlgeschlagen: " + (e.message || e));
+        showToast("Speichern fehlgeschlagen: " + friendlyFirebaseError(e));
       }
     });
 
@@ -909,7 +984,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
       }catch(e){
         console.error(e);
         confirmBtn.disabled = false; confirmBtn.textContent = "Entnahme bestätigen";
-        showToast("Speichern fehlgeschlagen: " + (e.message || e));
+        showToast("Speichern fehlgeschlagen: " + friendlyFirebaseError(e));
       }
     });
 
@@ -937,22 +1012,6 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
       showToast("Name gespeichert");
     });
 
-    const resetBtn = document.querySelector('[data-action="reset-demo"]');
-    if(resetBtn) resetBtn.addEventListener("click", async ()=>{
-      if(!confirm("Wirklich für ALLE Geräte auf den Ausgangsbestand zurücksetzen? Der komplette gemeinsame Firebase-Verlauf wird gelöscht.")) return;
-      resetBtn.disabled = true; resetBtn.textContent = "Setze zurück …";
-      try{
-        if(!db || !state.firebaseReady) throw new Error("Firebase ist nicht verbunden.");
-        await remove(ref(db, DB_ROOT + "/movements"));
-        state.movKeyCache = {}; state.movements = [];
-        render();
-        showToast("Für alle Geräte auf Ausgangsbestand zurückgesetzt");
-      }catch(e){
-        console.error(e);
-        resetBtn.disabled = false; resetBtn.textContent = "Auf Ausgangsbestand zurücksetzen";
-        showToast("Reset fehlgeschlagen: " + (e.message || e));
-      }
-    });
   }
 
   async function init(){
@@ -970,7 +1029,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
     render();
 
     if(!firebaseConfigured()){
-      showToast("Firebase noch nicht eingerichtet – Konfiguration in index.html eintragen");
+      showToast("Firebase-Key fehlt. GitHub Secret FIREBASE_WEB_API_KEY prüfen.");
       return;
     }
 
@@ -981,7 +1040,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
       showToast("Firebase verbunden · Live-Synchronisierung aktiv");
     }catch(e){
       console.error("Firebase initialization failed", e);
-      state.firebaseError = e.message || String(e);
+      state.firebaseError = friendlyFirebaseError(e);
       state.online = false;
       render();
       showToast("Firebase-Verbindung fehlgeschlagen: " + state.firebaseError);
@@ -993,4 +1052,3 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
 </script>
 </body>
 </html>
- 
