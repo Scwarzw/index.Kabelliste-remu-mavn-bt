@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Materiallager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1A1B1E;
+    --paper:#F4F1E8;
+    --panel:#FFFFFF;
+    --line:#DAD3C2;
+    --line-strong:#C6BDA5;
+    --amber:#E2963A;
+    --amber-dark:#C97A22;
+    --ok:#3F8F5F; --ok-bg:#E4F3EA;
+    --warn:#B5680A; --warn-bg:#FCEFDC;
+    --danger:#B23A28; --danger-bg:#FBE7E3;
+    --muted:#8A8370;
+    --radius:10px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0; background:var(--paper); color:var(--ink); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased;}
+  h1,h2,h3,.display{font-family:'Barlow Condensed',sans-serif; font-weight:700; letter-spacing:0.01em; text-transform:uppercase;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  button{font-family:inherit; cursor:pointer;}
+  input,select{font-family:inherit;}
+  a{color:inherit;}
+
+  #app{max-width:520px; margin:0 auto; min-height:100vh; padding-bottom:78px; position:relative;}
+  @media (min-width:860px){
+    #app{max-width:1080px; padding-bottom:24px;}
+  }
+
+  .topbar{position:sticky; top:0; z-index:20; background:var(--paper); border-bottom:2px solid var(--ink); padding:14px 16px 10px;}
+  .topbar-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .brand{display:flex; align-items:center; gap:8px;}
+  .brand-mark{width:30px; height:30px; background:var(--ink); border-radius:6px; display:flex; align-items:center; justify-content:center; color:var(--amber); font-family:'Barlow Condensed'; font-weight:700; font-size:16px;}
+  .brand h1{font-size:20px; margin:0; line-height:1;}
+  .brand small{display:block; font-family:'Inter'; text-transform:none; font-weight:500; font-size:11px; color:var(--muted); letter-spacing:0;}
+  .icon-btn{width:36px; height:36px; border-radius:8px; border:1.5px solid var(--line-strong); background:var(--panel); display:flex; align-items:center; justify-content:center;}
+  .search-row{margin-top:10px; display:flex; gap:8px;}
+  .search-input{flex:1; padding:10px 12px; border:1.5px solid var(--line-strong); border-radius:8px; background:var(--panel); font-size:14px;}
+  .search-input:focus{outline:2px solid var(--amber); outline-offset:1px;}
+
+  .view{padding:16px;}
+  @media (min-width:860px){ .view{padding:24px 28px;} }
+
+  .eyebrow{font-family:'Barlow Condensed'; font-weight:600; font-size:12px; letter-spacing:0.14em; text-transform:uppercase; color:var(--muted); margin:0 0 8px;}
+  .section-title{font-size:22px; margin:0 0 12px;}
+
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px;}
+  @media (min-width:860px){ .stat-grid{grid-template-columns:repeat(5,1fr);} }
+  .stat-card{background:var(--panel); border:1.5px solid var(--line); border-radius:var(--radius); padding:12px 14px;}
+  .stat-card .num{font-family:'JetBrains Mono'; font-weight:600; font-size:26px; line-height:1;}
+  .stat-card .label{font-size:11.5px; color:var(--muted); margin-top:4px; font-weight:500;}
+  .stat-card.alert .num{color:var(--warn);}
+  .stat-card.alert.zero .num{color:var(--danger);}
+
+  .quick-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:22px;}
+  .quick-btn{background:var(--ink); color:#fff; border:none; border-radius:var(--radius); padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:11.5px; font-weight:600;}
+  .quick-btn svg{width:20px; height:20px;}
+
+  .subhead{display:flex; align-items:center; justify-content:space-between; margin:22px 0 10px;}
+  .link-btn{font-size:12.5px; font-weight:600; color:var(--amber-dark); background:none; border:none; padding:0;}
+
+  .crate-card{position:relative; background:var(--panel); border:1.5px solid var(--ink); border-radius:8px; padding:14px 16px 14px 14px; margin-bottom:12px; display:flex; align-items:center; gap:12px; overflow:hidden;}
+  .crate-card::before{content:""; position:absolute; left:44px; top:-1px; bottom:-1px; border-left:2px dashed var(--line-strong);}
+  .crate-punch{width:38px; flex:0 0 38px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;}
+  .crate-punch .hole{width:8px; height:8px; border-radius:50%; background:var(--paper); border:1.5px solid var(--ink);}
+  .crate-id{font-family:'Barlow Condensed'; font-weight:700; font-size:15px; background:var(--ink); color:var(--amber); padding:1px 7px; border-radius:4px; letter-spacing:0.03em;}
+  .crate-body{flex:1; min-width:0;}
+  .crate-body h3{font-size:17px; margin:2px 0 3px; text-transform:none; font-weight:700;}
+  .crate-meta{font-size:12px; color:var(--muted); font-weight:500;}
+  .crate-arrow{color:var(--muted); font-size:18px;}
+
+  .chip{display:inline-flex; align-items:center; font-size:11px; font-weight:700; padding:3px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:0.03em;}
+
+  .cable-row{background:var(--panel); border:1.5px solid var(--line); border-radius:var(--radius); padding:12px 14px; margin-bottom:9px;}
+  .cable-row-top{display:flex; align-items:flex-start; justify-content:space-between; gap:10px;}
+  .cable-name{font-size:15px; font-weight:700; margin:0 0 4px;}
+  .cable-sub{display:flex; gap:6px; align-items:center; flex-wrap:wrap;}
+  .stock-badge{font-family:'JetBrains Mono'; font-size:12px; font-weight:600; padding:3px 9px; border-radius:6px; white-space:nowrap;}
+  .stock-ok{background:var(--ok-bg); color:var(--ok);}
+  .stock-warn{background:var(--warn-bg); color:var(--warn);}
+  .stock-danger{background:var(--danger-bg); color:var(--danger);}
+
+  .checkline{display:flex; align-items:center; gap:10px; padding:10px 4px;}
+  .checkline input[type=checkbox]{width:19px; height:19px; accent-color:var(--ink);}
+  .checkline label{flex:1; font-size:14.5px; font-weight:600;}
+  .qty-input{width:60px; padding:6px 8px; border:1.5px solid var(--line-strong); border-radius:6px; text-align:center; font-family:'JetBrains Mono'; font-size:14px;}
+
+  .btn{border-radius:8px; border:none; padding:11px 16px; font-weight:700; font-size:14px; display:inline-flex; align-items:center; justify-content:center; gap:6px;}
+  .btn-primary{background:var(--ink); color:#fff; width:100%;}
+  .btn-primary:disabled{background:var(--line-strong); color:#fff; cursor:not-allowed;}
+  .btn-outline{background:transparent; border:1.5px solid var(--line-strong); color:var(--ink);}
+  .btn-sm{padding:7px 12px; font-size:12.5px; border-radius:7px;}
+  .sticky-cta{position:sticky; bottom:78px; padding-top:10px; background:linear-gradient(to top, var(--paper) 70%, transparent);}
+  @media (min-width:860px){ .sticky-cta{bottom:16px;} }
+
+  .bottom-nav{position:fixed; bottom:0; left:0; right:0; background:var(--panel); border-top:2px solid var(--ink); display:flex; z-index:30;}
+  @media (min-width:860px){ .bottom-nav{display:none;} }
+  .nav-btn{flex:1; background:none; border:none; padding:9px 4px 8px; display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--muted); font-size:10.5px; font-weight:600;}
+  .nav-btn.active{color:var(--ink);}
+  .nav-btn svg{width:21px; height:21px;}
+  .nav-btn.active svg{stroke:var(--amber-dark);}
+
+  .side-nav{display:none;}
+  @media (min-width:860px){
+    .side-nav{display:flex; gap:6px; padding:0 28px 18px; border-bottom:2px solid var(--ink);}
+    .side-nav button{background:none; border:none; padding:8px 4px; font-family:'Barlow Condensed'; font-weight:700; font-size:14px; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); border-bottom:3px solid transparent;}
+    .side-nav button.active{color:var(--ink); border-color:var(--amber);}
+  }
+
+  .filter-bar{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:14px;}
+  .filter-bar select, .filter-bar input{padding:8px 10px; border:1.5px solid var(--line-strong); border-radius:7px; background:var(--panel); font-size:13px; white-space:nowrap;}
+
+  .movement-row{display:flex; gap:10px; padding:11px 0; border-bottom:1px solid var(--line);}
+  .movement-row:last-child{border-bottom:none;}
+  .mv-icon{width:30px; height:30px; border-radius:7px; flex:0 0 30px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono'; font-weight:700; font-size:13px;}
+  .mv-out{background:var(--danger-bg); color:var(--danger);}
+  .mv-in{background:var(--ok-bg); color:var(--ok);}
+  .mv-main{flex:1; min-width:0;}
+  .mv-title{font-size:13.5px; font-weight:700;}
+  .mv-meta{font-size:11.5px; color:var(--muted); margin-top:2px;}
+  .mv-qty{font-family:'JetBrains Mono'; font-weight:700; font-size:14px; white-space:nowrap;}
+
+  .empty-state{text-align:center; padding:40px 20px; color:var(--muted);}
+  .empty-state .glyph{font-size:34px; margin-bottom:10px;}
+  .empty-state p{font-size:13.5px; margin:4px 0 0;}
+
+  .toast{position:fixed; left:16px; right:16px; bottom:90px; background:var(--ink); color:#fff; padding:12px 16px; border-radius:9px; font-size:13.5px; font-weight:600; z-index:50; display:flex; align-items:center; gap:8px; box-shadow:0 6px 18px rgba(0,0,0,0.25);}
+  @media (min-width:860px){ .toast{left:auto; right:28px; bottom:24px; max-width:340px;} }
+
+  .qr-box{background:var(--panel); border:1.5px solid var(--ink); border-radius:12px; padding:20px; text-align:center; margin-top:14px;}
+  .qr-box img{width:180px; height:180px; image-rendering:pixelated;}
+  .qr-box .mono{font-size:12px; color:var(--muted); margin-top:8px; word-break:break-all;}
+
+  .kicker-input{width:100%; padding:10px 12px; border:1.5px solid var(--line-strong); border-radius:8px; font-size:14px; margin-bottom:10px;}
+  .field-label{font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); display:block; margin-bottom:5px;}
+  .sync-dot{width:7px; height:7px; border-radius:50%; background:var(--ok); display:inline-block; margin-right:5px;}
+  .footer-note{text-align:center; font-size:11px; color:var(--muted); padding:18px 20px 10px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- storage helpers ---------------- */
+  async function sGet(key, shared){
+    try{ const r = await window.storage.get(key, !!shared); return r ? r.value : null; }
+    catch(e){ return null; }
+  }
+  async function sSet(key, value, shared){
+    try{ return await window.storage.set(key, value, !!shared); }
+    catch(e){ console.error("storage.set failed", key, e); return null; }
+  }
+  async function sList(prefix, shared){
+    try{ const r = await window.storage.list(prefix, !!shared); return r ? r.keys : []; }
+    catch(e){ return []; }
+  }
+  async function sDelete(key, shared){
+    try{ return await window.storage.delete(key, !!shared); }
+    catch(e){ return null; }
+  }
+
+  /* ---------------- real inventory data ---------------- */
+  const BOX_DEFS = [
+    { id:"k01", name:"Kiste 1", description:"HDMI Flex & Normal", groups:[
+      {category:"HDMI Flex", items:[["1m",3],["2m",6],["3m",2],["5m",1],["7.5m",2]]},
+      {category:"HDMI Normal", items:[["0.5m",4],["0.75m",4],["1m",4],["2m",4],["3m",4],["5m",2]]}
+    ]},
+    { id:"k02", name:"Kiste 2", description:"LAN", groups:[
+      {category:"LAN", items:[["0.5m",5],["1m",5],["1.5m",2],["2m",5],["3m",4],["5m",4],["7.5m",4],["10m",3],["15m",1]]}
+    ]},
+    { id:"k03", name:"Kiste 3", description:"DTP Kabel", groups:[
+      {category:"DTP Kabel – Telegärtner", items:[["Stecker",7],["3m",2],["5m",1],["7.5m",1]]}
+    ]},
+    { id:"k04", name:"Kiste 4", description:"Kleinmaterial", groups:[
+      {category:"DTP Kabel", items:[["10m",1],["15m",1],["20m",1],["40m",1]]},
+      {category:"Kleinmaterial", items:[
+        ["Extron Netzteile",4],["Kabelbinder Kurz",2],["Kabelbinder Lang",1],
+        ["Blindplatte Schwarz 1HE",1],["Blindplatte Schwarz 2HE",1],["Blindplatte Schwarz 3HE",1],
+        ["HDMI Splitter inkl. Netzteil",1],["Reckschrauben (30 Stk.)",2],["Käfigmuttern (30 Stk.)",2],
+        ["U-Scheiben Schwarz (30 Stk.)",2],["Netzteil Neets",3],["PC Netzteil",1]
+      ]}
+    ]},
+    { id:"k05", name:"Kiste 5", description:"P-Touch", groups:[
+      {category:"P-Touch Schriftband", items:[
+        ["Schwarz auf Weiss 12mm",2],["Schwarz auf Weiss 18mm",1],["Weiss auf Schwarz 18mm",1],
+        ["Weiss auf Schwarz 9mm",1],["Weiss auf Schwarz 6mm",1],["Schwarz auf Gelb 6mm",1],["Schwarz auf Gelb 24mm",1]
+      ]},
+      {category:"Zubehör", items:[["Mini-Kabelbinder (50 Stk.)",2],["Pilot-Abdeckung (15 Stk.)",2]]}
+    ]},
+    { id:"k06", name:"Kiste 6", description:"Reinigungsmaterial", groups:[
+      {category:"Reinigungsmaterial", items:[["Einweg-Tücher Blau",11],["Mikrofasertuch",4],["Haushaltspapier Rolle",1],["Multischaum",1]]}
+    ]},
+    { id:"k07", name:"Kiste 7", description:"Diverses Material", groups:[
+      {category:"Netzwerkstecker-Abdeckung", items:[
+        ["Rot",6],["Orange",6],["Gelb",6],["Grün",6],["Blau",6],["Violett",6],["Grau",6],["Schwarz",6]
+      ]},
+      {category:"Steckverbinder", items:[["Hirose Stecker mit Gartenhaag",12]]},
+      {category:"WAGO-Klemmen", items:[["1-fach",9],["2-fach",12],["3-fach",7]]},
+      {category:"Klemmen Grün", items:[["3-fach",9],["2-fach",9],["4-fach",4],["5-fach",4]]},
+      {category:"Abdeckungen", items:[["FLF Abdeckung farbig",50],["Netzwerkstecker-Abdeckung farbig",50]]}
+    ]},
+    { id:"k08", name:"Kiste 8", description:"Diverse Adapter", groups:[
+      {category:"HDMI Adapter", items:[
+        ["HDMI-Durchführung D-Serie, Nickel",4],["HDMI-Durchführung D-Serie, Schwarz",4],
+        ["Display Port – HDMI Adapter",2],["DVI – HDMI Adapter",3]
+      ]},
+      {category:"RS232 Adapter", items:[
+        ["Nullmodem-Adapter (Orange)",5],["Mini Gender Changer male (Gelb)",6],
+        ["Mini Gender Changer female (Gelb)",5],["Mini Gender Changer male-female (Gelb)",3],
+        ["Abdeckung",4],["Lötbarer Stecker Female",5],["Lötbarer Stecker Male",5]
+      ]},
+      {category:"USB Adapter", items:[
+        ["USB A-C Adapter",4],["USB-Durchführung 3.0",5],["USB-Durchführung 2.0",2],
+        ["USB A-B Adapter",4],["D-Serie USB-A auf B",2]
+      ]},
+      {category:"Netzwerk-Adapter", items:[
+        ["Keystone RJ45-Durchführung",6],["D-Serie Netzwerk, Schwarz",3],["D-Serie Netzwerk, Nickel",3],
+        ["Ethercon Direktaufschaltung (NE8FDX-Y6)",3],["Keystone Direktaufschaltung",4]
+      ]}
+    ]},
+    { id:"k09", name:"Kiste 9", description:"Löt-Material & Heissluftfön", groups:[
+      {category:"Löt-Material", items:[["Lötlitze",1],["Lötzinn",1],["Lötkolben & Lötkolbenhalterung",1]]},
+      {category:"Werkzeug", items:[["Heissluftfön",1],["3er-Steckerleiste",1]]}
+    ]},
+    { id:"k10", name:"Kiste 10", description:"Audio Adapter", groups:[
+      {category:"Symmetrierer", items:[
+        ["Symmetrierer Cinch auf XLR Male",2],["Symmetrierer Cinch auf XLR Female",1],
+        ["Symmetrierer Cinch auf Cinch",1],["Splitter Line Cinch R/L – XLR Female",1],
+        ["Symmetrier-Trafo (161.01)",1],["Mono-Summierer (161.92)",2]
+      ]},
+      {category:"Klinke / Cinch", items:[
+        ["6.3mm Klinke – Cinch inkl. 90°-Adapter",4],["Cinch – 3.5mm Klinke Female",2],
+        ["Cinch Female – 3.5mm Klinke",1],["3.5mm Klinke – Cinch Adapter",3],
+        ["Y-Kabel Klinke 3.5mm",2],["2.5mm Klinke – Cinch",2]
+      ]},
+      {category:"Rack-Anschlüsse", items:[["Cinch zweifach",2],["Cinch einfach (Rot)",2],["Cinch einfach (Weiss)",2]]},
+      {category:"XLR D-Serie", items:[
+        ["Female, lötbar, Schwarz",2],["Male, lötbar, Schwarz",2],["Male, lötbar, Nickel",2],["Female, lötbar, Nickel",3]
+      ]},
+      {category:"Sonstiges Audio", items:[["Cinch-Stecker lötbar",2],["Diverse XLR-Adapter",19]]}
+    ]},
+    { id:"k11", name:"Kiste 11", description:"Diverses 230V, USB, Audio", groups:[
+      {category:"Video", items:[["DP – HDMI Kabel 5m",1],["DP Ultraflex 1.8m",4],["HDMI-Dosenanschluss, Boden",2]]},
+      {category:"USB", items:[["USB-A auf C 3.0",1],["USB-C 3.2, 2m",2],["USB-C 3.2, 5m",2],["USB-A auf C 3.2, 5m",1],["USB A auf B 2.0, 2m",2]]},
+      {category:"Audio", items:[["3.5mm Klinke Kabel, 5m",2],["3.5mm Klinke Kabel, 3m",1],["3.5mm Klinke – Cinch Kabel, 3m",1],["Mickymouse-Kabel, 1m",3]]},
+      {category:"Strom", items:[
+        ["Gerätenetzkabel, 2m",3],["Stromverlängerung, 2m",3],["Stromverlängerung, 3m",2],["Stromverlängerung, 5m",1],
+        ["7-fach Steckerleiste",1],["5-fach Steckerleiste",1],["3-fach Steckerleiste",1]
+      ]}
+    ]},
+    { id:"k12", name:"Kiste 12", description:"Diverses Material 2", groups:[
+      {category:"XLR Kabel", items:[["Male-Female, 2m",2],["Male-Female, 5m",2],["Male-Female, 1.5m",2],["Male-Female, 3m",1]]},
+      {category:"Adapter", items:[
+        ["HDMI – USB-C Adapter",2],["USB 3.0 auf LAN",1],["USB-A 2.0 auf USB-B, 0.5m",1],
+        ["USB-B mini – USB A 2.0, 3m",1],["USB A – USB B 2.0, 4.5m",1],["RS232, 1.8m",1],
+        ["3.5mm Klinke Verlängerung",1],["HDMI-Wanddosenanschluss",1],["POE Injector",2],
+        ["HDMI-Doktor",1],["D-Serie Einsatz in Bodendose",3]
+      ]}
+    ]}
+  ];
+
+  function defaultMinStock(qty){
+    if(qty<=2) return 1;
+    if(qty<=5) return 2;
+    if(qty<=9) return 3;
+    if(qty<=19) return 4;
+    return 5;
+  }
+
+  let _built = null;
+  function buildBoxesAndCables(){
+    const boxes = []; const cables = []; let counter = 1;
+    const pad = n => String(n).padStart(3,"0");
+    BOX_DEFS.forEach(b=>{
+      boxes.push({id:b.id, name:b.name, description:b.description});
+      b.groups.forEach(g=>{
+        g.items.forEach(([label, qty])=>{
+          cables.push({
+            id: "c"+pad(counter++), name: label, category: g.category, boxId: b.id,
+            initialStock: qty, minStock: defaultMinStock(qty)
+          });
+        });
+      });
+    });
+    return {boxes, cables};
+  }
+  function getBuilt(){ if(!_built) _built = buildBoxesAndCables(); return _built; }
+  function demoBoxes(){ return getBuilt().boxes.map(b=>Object.assign({},b)); }
+  function demoCables(){ return getBuilt().cables.map(c=>Object.assign({},c)); }
+  function demoMovements(){ return []; } // frisches Lager: keine erfundene Historie
+
+  /* ---------------- state ---------------- */
+  const state = {
+    boxes: [], cables: [], movements: [], movKeyCache: {},
+    user: "", view: "dashboard", activeBoxId: null, activeCableId: null,
+    search: "", filters: { box:"", category:"", user:"" }, selection: {},
+    ready: false
+  };
+
+  function allCategories(){ return Array.from(new Set(state.cables.map(c=>c.category))).sort((a,b)=>a.localeCompare(b,'de')); }
+
+  const CHIP_PALETTE = [
+    {bg:"#E7E7E8", fg:"#2B2E33"}, {bg:"#E5EAFB", fg:"#3457C7"}, {bg:"#E1F4E9", fg:"#2E9C5A"},
+    {bg:"#FBECDD", fg:"#C9670F"}, {bg:"#F3E6F7", fg:"#8A3FA0"}, {bg:"#FDEAEA", fg:"#B23A28"},
+    {bg:"#E6F6F6", fg:"#1E7F7F"}, {bg:"#F7F0DD", fg:"#9C7A1E"}
+  ];
+  function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return Math.abs(h); }
+  function chipStyle(cat){ const p = CHIP_PALETTE[hashStr(cat) % CHIP_PALETTE.length]; return "background:"+p.bg+";color:"+p.fg+";"; }
+
+  /* ---------------- data loading & seeding ---------------- */
+  async function loadBoxesAndCables(){
+    let boxes = await sGet("boxes", true);
+    let cables = await sGet("cables", true);
+    if(!boxes || !cables){
+      boxes = demoBoxes(); cables = demoCables();
+      await sSet("boxes", boxes, true);
+      await sSet("cables", cables, true);
+    }
+    state.boxes = boxes; state.cables = cables;
+  }
+
+  async function syncMovements(){
+    const keys = await sList("movements:", true);
+    const newKeys = keys.filter(k => !(k in state.movKeyCache));
+    if(newKeys.length){
+      const vals = await Promise.all(newKeys.map(k => sGet(k, true)));
+      newKeys.forEach((k,i) => { if(vals[i]) state.movKeyCache[k] = vals[i]; });
+    }
+    Object.keys(state.movKeyCache).forEach(k => { if(!keys.includes(k)) delete state.movKeyCache[k]; });
+    state.movements = Object.values(state.movKeyCache).sort((a,b)=> b.ts - a.ts);
+  }
+
+  function currentStock(cableId){
+    const cable = state.cables.find(c=>c.id===cableId);
+    if(!cable) return 0;
+    let stock = cable.initialStock;
+    for(const m of state.movements){
+      if(m.cableId !== cableId) continue;
+      stock += (m.type === "entnahme" ? -m.qty : m.qty);
+    }
+    return stock;
+  }
+  function stockStatus(cable){
+    const s = currentStock(cable.id);
+    if(s <= 0) return {level:"danger", label:"Nicht mehr vorhanden", stock:s};
+    if(s <= cable.minStock) return {level:"warn", label:"Niedriger Bestand", stock:s};
+    return {level:"ok", label:"Auf Lager", stock:s};
+  }
+  function boxCableCount(boxId){ return state.cables.filter(c=>c.boxId===boxId).length; }
+
+  async function recordMovement(cableId, type, qty, user){
+    const now = new Date();
+    const key = "movements:" + Date.now() + "_" + Math.random().toString(36).slice(2,8);
+    const val = {
+      cableId, type, qty, user: user || "",
+      date: now.toLocaleDateString("de-CH"), time: now.toLocaleTimeString("de-CH", {hour:"2-digit", minute:"2-digit"}),
+      ts: Date.now()
+    };
+    await sSet(key, val, true);
+    state.movKeyCache[key] = val;
+    state.movements = Object.values(state.movKeyCache).sort((a,b)=> b.ts - a.ts);
+  }
+
+  const ICONS = {
+    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>',
+    box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>',
+    cable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a4 4 0 004 4h8a4 4 0 014 4"/><circle cx="4" cy="8" r="2"/><circle cx="20" cy="16" r="2"/></svg>',
+    list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+    qr: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20v.01"/></svg>',
+    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+    settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>',
+    undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>'
+  };
+
+  const app = document.getElementById("app");
+  function h(strings, ...vals){ return strings.reduce((a,s,i)=> a + s + (vals[i]!==undefined?vals[i]:""), ""); }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+  function nav(){
+    const tabs = [
+      {id:"dashboard", label:"Start", icon:ICONS.home},
+      {id:"boxes", label:"Kisten", icon:ICONS.box},
+      {id:"cables", label:"Material", icon:ICONS.cable},
+      {id:"movements", label:"Entnahmen", icon:ICONS.list}
+    ];
+    const top = ["boxDetail","cableDetail"].includes(state.view) ? tabIdForSubview() : state.view;
+    return h`
+      <div class="bottom-nav">
+        ${tabs.map(t=>`
+          <button class="nav-btn ${top===t.id?"active":""}" data-nav="${t.id}">
+            ${t.icon}<span>${t.label}</span>
+          </button>`).join("")}
+      </div>
+      <div class="side-nav">
+        ${tabs.map(t=>`<button class="${top===t.id?"active":""}" data-nav="${t.id}">${t.label}</button>`).join("")}
+      </div>
+    `;
+  }
+  function tabIdForSubview(){
+    if(state.view==="boxDetail") return "boxes";
+    if(state.view==="cableDetail") return "cables";
+    return state.view;
+  }
+
+  function topbar(){
+    return h`
+      <div class="topbar">
+        <div class="topbar-row">
+          <div class="brand">
+            <div class="brand-mark">M</div>
+            <div><h1>Materiallager</h1><small><span class="sync-dot"></span>Bestand geteilt · live</small></div>
+          </div>
+          <button class="icon-btn" data-nav="settings" aria-label="Einstellungen">${ICONS.settings}</button>
+        </div>
+        <div class="search-row">
+          <input class="search-input" id="globalSearch" placeholder="Material suchen, z. B. HDMI Flex 2m" value="${esc(state.search)}">
+        </div>
+      </div>
+    `;
+  }
+
+  function renderDashboard(){
+    const totalBoxes = state.boxes.length;
+    const totalCables = state.cables.length;
+    const today = new Date().toLocaleDateString("de-CH");
+    const todayCount = state.movements.filter(m=>m.type==="entnahme" && m.date===today).length;
+    const low = state.cables.filter(c=>{ const s=currentStock(c.id); return s>0 && s<=c.minStock; });
+    const zero = state.cables.filter(c=> currentStock(c.id) <= 0);
+
+    return h`
+      <div class="eyebrow">Übersicht</div>
+      <h2 class="section-title">Dein Lager auf einen Blick</h2>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="num">${totalBoxes}</div><div class="label">Kisten</div></div>
+        <div class="stat-card"><div class="num">${totalCables}</div><div class="label">Materialtypen</div></div>
+        <div class="stat-card"><div class="num">${todayCount}</div><div class="label">Entnahmen heute</div></div>
+        <div class="stat-card alert"><div class="num">${low.length}</div><div class="label">Niedriger Bestand</div></div>
+        <div class="stat-card alert zero"><div class="num">${zero.length}</div><div class="label">Bestand 0</div></div>
+      </div>
+
+      <div class="quick-grid">
+        <button class="quick-btn" data-nav="boxes">${ICONS.box}Kisten</button>
+        <button class="quick-btn" data-nav="cables">${ICONS.cable}Material</button>
+        <button class="quick-btn" data-nav="movements">${ICONS.list}Entnahmen</button>
+        <button class="quick-btn" data-action="return-flow">${ICONS.undo}Auffüllen</button>
+      </div>
+
+      ${ (low.length+zero.length) ? h`
+        <div class="subhead"><h3 class="section-title" style="font-size:17px;margin:0;">Was fehlt</h3></div>
+        ${zero.concat(low).slice(0,8).map(c=>cableRow(c)).join("")}
+      ` : ""}
+
+      <div class="subhead">
+        <h3 class="section-title" style="font-size:17px;margin:0;">Letzte Entnahmen</h3>
+        <button class="link-btn" data-nav="movements">Alle ansehen</button>
+      </div>
+      ${state.movements.length ? state.movements.slice(0,4).map(movementRow).join("") : emptyState("📋","Noch keine Entnahmen erfasst.")}
+    `;
+  }
+
+  function emptyState(glyph, text){ return h`<div class="empty-state"><div class="glyph">${glyph}</div><p>${text}</p></div>`; }
+
+  function cableRow(c){
+    const st = stockStatus(c);
+    const badgeClass = st.level==="ok" ? "stock-ok" : (st.level==="warn" ? "stock-warn" : "stock-danger");
+    const icon = st.level==="ok" ? "" : (st.level==="warn" ? "🟠 " : "🔴 ");
+    const box = state.boxes.find(b=>b.id===c.boxId);
+    return h`
+      <div class="cable-row" data-cable="${c.id}" data-action="open-cable">
+        <div class="cable-row-top">
+          <div>
+            <p class="cable-name">${esc(c.name)}</p>
+            <div class="cable-sub">
+              <span class="chip" style="${chipStyle(c.category)}">${esc(c.category)}</span>
+              <span style="font-size:11.5px;color:var(--muted);">${box?esc(box.name):""}</span>
+            </div>
+          </div>
+          <span class="stock-badge ${badgeClass}">${icon}${st.stock} Stk.</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function movementRow(m){
+    const cable = state.cables.find(c=>c.id===m.cableId);
+    const box = cable ? state.boxes.find(b=>b.id===cable.boxId) : null;
+    const isOut = m.type === "entnahme";
+    return h`
+      <div class="movement-row">
+        <div class="mv-icon ${isOut?"mv-out":"mv-in"}">${isOut?"−":"+"}</div>
+        <div class="mv-main">
+          <div class="mv-title">${cable?esc(cable.name):"Unbekanntes Material"}</div>
+          <div class="mv-meta">${box?esc(box.name):"–"} · ${m.date} ${m.time}${m.user?" · "+esc(m.user):""}</div>
+        </div>
+        <div class="mv-qty" style="color:${isOut?"var(--danger)":"var(--ok)"}">${isOut?"−":"+"}${m.qty}</div>
+      </div>
+    `;
+  }
+
+  function renderBoxes(){
+    const q = state.search.trim().toLowerCase();
+    const boxes = q ? state.boxes.filter(b => b.name.toLowerCase().includes(q) || b.description.toLowerCase().includes(q)) : state.boxes;
+    return h`
+      <div class="eyebrow">Kisten</div>
+      <h2 class="section-title">Alle Materialkisten</h2>
+      ${boxes.map(b=>{
+        const count = boxCableCount(b.id);
+        const anyAlert = state.cables.filter(c=>c.boxId===b.id).some(c=>currentStock(c.id) <= c.minStock);
+        return h`
+        <div class="crate-card" data-box="${b.id}" data-action="open-box">
+          <div class="crate-punch"><div class="hole"></div><div class="hole"></div><div class="hole"></div></div>
+          <div class="crate-body">
+            <span class="crate-id">${esc(b.id.toUpperCase())}</span>
+            <h3>${esc(b.name)} — ${esc(b.description)}</h3>
+            <div class="crate-meta">${count} Materialtypen${anyAlert?" · ⚠️ Bestand prüfen":""}</div>
+          </div>
+          <div class="crate-arrow">›</div>
+        </div>
+      `;}).join("") || emptyState("📦","Keine Kiste gefunden.")}
+    `;
+  }
+
+  function renderBoxDetail(){
+    const box = state.boxes.find(b=>b.id===state.activeBoxId);
+    if(!box) return emptyState("📦","Kiste nicht gefunden.");
+    const cables = state.cables.filter(c=>c.boxId===box.id);
+    const selectedIds = Object.keys(state.selection).filter(id => state.selection[id] > 0 && cables.some(c=>c.id===id));
+
+    return h`
+      <button class="btn btn-outline btn-sm" data-nav="boxes" style="margin-bottom:14px;">${ICONS.back} Alle Kisten</button>
+      <div class="eyebrow">${esc(box.id.toUpperCase())}</div>
+      <h2 class="section-title">${esc(box.name)} — ${esc(box.description)}</h2>
+
+      <div style="display:flex; gap:8px; margin-bottom:16px;">
+        <button class="btn btn-outline btn-sm" data-action="show-qr" data-box="${box.id}">${ICONS.qr} QR-Code</button>
+        <button class="btn btn-outline btn-sm" data-action="return-flow" data-box="${box.id}">${ICONS.undo} Auffüllen</button>
+      </div>
+
+      <p class="field-label">Material auswählen und Menge angeben</p>
+      ${cables.map(c=>{
+        const st = stockStatus(c);
+        const badgeClass = st.level==="ok" ? "stock-ok" : (st.level==="warn" ? "stock-warn" : "stock-danger");
+        const icon = st.level==="ok" ? "" : (st.level==="warn" ? "🟠 " : "🔴 ");
+        const checked = !!state.selection[c.id];
+        const qty = state.selection[c.id] || 1;
+        const disabled = st.stock <= 0;
+        return h`
+        <div class="cable-row">
+          <div class="checkline">
+            <input type="checkbox" id="chk-${c.id}" data-select="${c.id}" ${checked?"checked":""} ${disabled?"disabled":""}>
+            <label for="chk-${c.id}">
+              ${esc(c.name)} <span class="chip" style="${chipStyle(c.category)}; margin-left:6px;">${esc(c.category)}</span>
+            </label>
+            <span class="stock-badge ${badgeClass}">${icon}${st.stock} Stk.</span>
+          </div>
+          ${checked ? h`
+            <div style="display:flex; align-items:center; gap:8px; padding:2px 4px 4px 33px;">
+              <span class="field-label" style="margin:0;">Menge</span>
+              <input type="number" min="1" max="${st.stock}" class="qty-input" data-qty="${c.id}" value="${Math.min(qty, st.stock||1)}">
+              <span style="font-size:12px;color:var(--muted);">von ${st.stock} verfügbar</span>
+            </div>
+          ` : ""}
+        </div>
+      `;}).join("") || emptyState("🔌","Diese Kiste enthält noch kein Material.")}
+
+      <div class="sticky-cta">
+        <button class="btn btn-primary" id="confirmEntnahme" ${selectedIds.length? "" : "disabled"}>
+          Entnahme bestätigen ${selectedIds.length? "(" + selectedIds.length + ")" : ""}
+        </button>
+      </div>
+    `;
+  }
+
+  function renderCables(){
+    const q = state.search.trim().toLowerCase();
+    let cables = state.cables;
+    if(state.filters.category) cables = cables.filter(c=>c.category===state.filters.category);
+    if(state.filters.box) cables = cables.filter(c=>c.boxId===state.filters.box);
+    if(q) cables = cables.filter(c=> c.name.toLowerCase().includes(q));
+
+    const grouped = {};
+    cables.forEach(c=>{ (grouped[c.category] = grouped[c.category]||[]).push(c); });
+    const cats = Object.keys(grouped).sort((a,b)=>a.localeCompare(b,'de'));
+
+    return h`
+      <div class="eyebrow">Bestand</div>
+      <h2 class="section-title">Alles Material</h2>
+      <div class="filter-bar">
+        <select id="filterCategory">
+          <option value="">Alle Kategorien</option>
+          ${allCategories().map(c=>`<option value="${esc(c)}" ${state.filters.category===c?"selected":""}>${esc(c)}</option>`).join("")}
+        </select>
+        <select id="filterBox">
+          <option value="">Alle Kisten</option>
+          ${state.boxes.map(b=>`<option value="${b.id}" ${state.filters.box===b.id?"selected":""}>${esc(b.name)}</option>`).join("")}
+        </select>
+      </div>
+      ${cats.length ? cats.map(cat=>h`
+        <p class="field-label" style="margin-top:14px;">${esc(cat)}</p>
+        ${grouped[cat].map(c=>cableRow(c)).join("")}
+      `).join("") : emptyState("🔍","Kein Material gefunden.")}
+    `;
+  }
+
+  function renderCableDetail(){
+    const cable = state.cables.find(c=>c.id===state.activeCableId);
+    if(!cable) return emptyState("🔌","Material nicht gefunden.");
+    const box = state.boxes.find(b=>b.id===cable.boxId);
+    const st = stockStatus(cable);
+    const hist = state.movements.filter(m=>m.cableId===cable.id);
+
+    return h`
+      <button class="btn btn-outline btn-sm" data-nav="cables" style="margin-bottom:14px;">${ICONS.back} Alles Material</button>
+      <div class="eyebrow">${esc(cable.category)} · ${box?esc(box.name):""}</div>
+      <h2 class="section-title">${esc(cable.name)}</h2>
+      <div class="stat-card" style="display:inline-block; margin-bottom:16px;">
+        <div class="num">${st.stock}</div>
+        <div class="label">Aktueller Bestand${st.level!=="ok"? " · "+(st.level==="warn"?"🟠 niedrig":"🔴 leer") : ""}</div>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:18px;">
+        <button class="btn btn-outline btn-sm" data-action="open-box" data-box="${cable.boxId}">Zur Kiste</button>
+        <button class="btn btn-outline btn-sm" data-action="return-single" data-cable="${cable.id}">${ICONS.undo} Auffüllen</button>
+      </div>
+      <p class="field-label">Verlauf</p>
+      ${hist.length ? hist.map(movementRow).join("") : emptyState("📋","Für dieses Material gibt es noch keine Bewegungen.")}
+    `;
+  }
+
+  function renderMovements(){
+    let mvs = state.movements;
+    if(state.filters.box) mvs = mvs.filter(m=>{ const c=state.cables.find(cc=>cc.id===m.cableId); return c && c.boxId===state.filters.box; });
+    if(state.filters.category) mvs = mvs.filter(m=>{ const c=state.cables.find(cc=>cc.id===m.cableId); return c && c.category===state.filters.category; });
+    if(state.filters.user) mvs = mvs.filter(m=> (m.user||"Unbekannt") === state.filters.user);
+    const q = state.search.trim().toLowerCase();
+    if(q) mvs = mvs.filter(m=>{ const c=state.cables.find(cc=>cc.id===m.cableId); return c && c.name.toLowerCase().includes(q); });
+
+    const users = Array.from(new Set(state.movements.map(m=>m.user||"Unbekannt")));
+
+    return h`
+      <div class="eyebrow">Historie</div>
+      <h2 class="section-title">Entnahmen &amp; Auffüllen</h2>
+      <div class="filter-bar">
+        <select id="filterCategory">
+          <option value="">Alle Kategorien</option>
+          ${allCategories().map(c=>`<option value="${esc(c)}" ${state.filters.category===c?"selected":""}>${esc(c)}</option>`).join("")}
+        </select>
+        <select id="filterBox">
+          <option value="">Alle Kisten</option>
+          ${state.boxes.map(b=>`<option value="${b.id}" ${state.filters.box===b.id?"selected":""}>${esc(b.name)}</option>`).join("")}
+        </select>
+        <select id="filterUser">
+          <option value="">Alle Mitarbeiter</option>
+          ${users.map(u=>`<option value="${esc(u)}" ${state.filters.user===u?"selected":""}>${esc(u)}</option>`).join("")}
+        </select>
+      </div>
+      ${mvs.length ? mvs.map(movementRow).join("") : emptyState("📋","Keine Einträge für diese Filter.")}
+    `;
+  }
+
+  function renderSettings(){
+    return h`
+      <div class="eyebrow">Einstellungen</div>
+      <h2 class="section-title">Dein Gerät</h2>
+      <p class="field-label">Dein Name (für Entnahmen &amp; Auffüllen)</p>
+      <input class="kicker-input" id="userNameInput" placeholder="z. B. M. Keller" value="${esc(state.user)}">
+      <p style="font-size:12px;color:var(--muted);margin-top:-4px;">Wird nur auf diesem Gerät gespeichert und optional bei jeder Buchung mitgeschrieben.</p>
+
+      <div class="subhead"><h3 class="section-title" style="font-size:17px;margin:0;">Kisten &amp; QR-Codes</h3></div>
+      ${state.boxes.map(b=>h`
+        <div class="crate-card" style="cursor:default;">
+          <div class="crate-punch"><div class="hole"></div><div class="hole"></div><div class="hole"></div></div>
+          <div class="crate-body">
+            <span class="crate-id">${esc(b.id.toUpperCase())}</span>
+            <h3>${esc(b.name)} — ${esc(b.description)}</h3>
+            <div class="crate-meta">${boxCableCount(b.id)} Materialtypen</div>
+          </div>
+          <button class="btn btn-outline btn-sm" data-action="show-qr" data-box="${b.id}">QR</button>
+        </div>
+      `).join("")}
+
+      <div class="subhead"><h3 class="section-title" style="font-size:17px;margin:0;">Daten</h3></div>
+      <p style="font-size:12.5px;color:var(--muted);">Setzt alle Kisten, das Material und den kompletten Bewegungsverlauf für alle Nutzer dieses Prototyps auf den Ausgangsbestand zurück.</p>
+      <button class="btn btn-outline btn-sm" data-action="reset-demo" style="color:var(--danger); border-color:var(--danger);">Auf Ausgangsbestand zurücksetzen</button>
+    `;
+  }
+
+  function qrModal(boxId){
+    const box = state.boxes.find(b=>b.id===boxId);
+    if(!box) return "";
+    const deepPath = "?kiste=" + box.id;
+    const qrData = encodeURIComponent(location.origin + location.pathname + deepPath);
+    return h`
+      <div class="qr-box">
+        <p class="field-label">QR-Code für ${esc(box.name)}</p>
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${qrData}" alt="QR-Code ${esc(box.name)}">
+        <p class="mono">${esc(deepPath)}</p>
+        <p style="font-size:12px;color:var(--muted); margin-top:10px;">Ausdrucken und auf der Innenseite des Kistendeckels anbringen. Nach dem Scannen öffnet sich diese Kiste direkt mit ihrer vollständigen Materialliste — sobald das Artifact veröffentlicht wurde, funktioniert der Link von jedem Smartphone aus.</p>
+        <button class="btn btn-outline btn-sm" data-action="close-qr" style="margin-top:10px;">Schließen</button>
+      </div>
+    `;
+  }
+
+  let qrOpenFor = null;
+  let returnFlowFor = null;
+  let toastTimer = null;
+
+  function render(){
+    let body = "";
+    if(!state.ready){ body = emptyState("⏳","Lager wird geladen …"); }
+    else if(state.view==="dashboard") body = renderDashboard();
+    else if(state.view==="boxes") body = renderBoxes();
+    else if(state.view==="boxDetail") body = renderBoxDetail();
+    else if(state.view==="cables") body = renderCables();
+    else if(state.view==="cableDetail") body = renderCableDetail();
+    else if(state.view==="movements") body = renderMovements();
+    else if(state.view==="settings") body = renderSettings();
+
+    app.innerHTML = h`
+      ${topbar()}
+      <div class="view">${body}</div>
+      ${qrOpenFor ? `<div class="view" style="padding-top:0;">${qrModal(qrOpenFor)}</div>` : ""}
+      ${returnFlowFor ? returnFlowPanel() : ""}
+      <div class="footer-note">Bestand wird geräteübergreifend geteilt · alle Nutzer dieses Prototyps sehen dieselben Daten</div>
+      ${nav()}
+    `;
+    bindEvents();
+  }
+
+  function returnFlowPanel(){
+    const cables = returnFlowFor === "all" ? state.cables : state.cables.filter(c=>c.boxId===returnFlowFor);
+    return h`
+      <div class="view" style="padding-top:0;">
+        <div class="crate-card" style="align-items:flex-start;">
+          <div class="crate-body" style="width:100%;">
+            <h3>Material auffüllen</h3>
+            <p class="field-label" style="margin-top:8px;">Material</p>
+            <select id="returnCableSelect" class="kicker-input">
+              ${cables.map(c=>`<option value="${c.id}" ${state.activeCableId===c.id?"selected":""}>${esc(c.name)} — ${esc((state.boxes.find(b=>b.id===c.boxId)||{}).name||"")}</option>`).join("")}
+            </select>
+            <p class="field-label">Menge</p>
+            <input type="number" min="1" id="returnQty" class="qty-input" value="1" style="width:100%;">
+            <div style="display:flex; gap:8px; margin-top:12px;">
+              <button class="btn btn-primary" id="confirmReturn" style="width:auto; flex:1;">+ Zurückbuchen</button>
+              <button class="btn btn-outline" id="cancelReturn">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function showToast(msg){
+    clearTimeout(toastTimer);
+    const old = document.querySelector(".toast");
+    if(old) old.remove();
+    const t = document.createElement("div");
+    t.className = "toast"; t.textContent = msg;
+    document.body.appendChild(t);
+    toastTimer = setTimeout(()=> t.remove(), 3200);
+  }
+
+  function bindEvents(){
+    app.querySelectorAll("[data-nav]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const target = btn.getAttribute("data-nav");
+        qrOpenFor = null; returnFlowFor = null;
+        state.view = target; state.search = "";
+        render();
+      });
+    });
+
+    app.querySelectorAll('[data-action="open-box"]').forEach(el=>{
+      el.addEventListener("click", ()=>{
+        state.activeBoxId = el.getAttribute("data-box");
+        state.view = "boxDetail"; state.selection = {};
+        qrOpenFor = null; returnFlowFor = null;
+        render();
+      });
+    });
+    app.querySelectorAll('[data-action="open-cable"]').forEach(el=>{
+      el.addEventListener("click", ()=>{
+        state.activeCableId = el.getAttribute("data-cable");
+        state.view = "cableDetail";
+        render();
+      });
+    });
+    app.querySelectorAll('[data-action="show-qr"]').forEach(el=>{
+      el.addEventListener("click", (e)=>{ e.stopPropagation(); qrOpenFor = el.getAttribute("data-box"); render(); window.scrollTo({top:document.body.scrollHeight, behavior:"smooth"}); });
+    });
+    app.querySelectorAll('[data-action="close-qr"]').forEach(el=>{
+      el.addEventListener("click", ()=>{ qrOpenFor = null; render(); });
+    });
+    app.querySelectorAll('[data-action="return-flow"]').forEach(el=>{
+      el.addEventListener("click", ()=>{ returnFlowFor = el.getAttribute("data-box") || "all"; render(); });
+    });
+    app.querySelectorAll('[data-action="return-single"]').forEach(el=>{
+      el.addEventListener("click", ()=>{ returnFlowFor = "all"; render(); });
+    });
+
+    const cancelReturn = document.getElementById("cancelReturn");
+    if(cancelReturn) cancelReturn.addEventListener("click", ()=>{ returnFlowFor = null; render(); });
+
+    const confirmReturn = document.getElementById("confirmReturn");
+    if(confirmReturn) confirmReturn.addEventListener("click", async ()=>{
+      const cableId = document.getElementById("returnCableSelect").value;
+      const qty = Math.max(1, parseInt(document.getElementById("returnQty").value || "1", 10));
+      confirmReturn.disabled = true; confirmReturn.textContent = "Wird gespeichert …";
+      await recordMovement(cableId, "rueckgabe", qty, state.user);
+      returnFlowFor = null; render();
+      showToast("Aufgefüllt: +" + qty + " Stück");
+    });
+
+    app.querySelectorAll("[data-select]").forEach(chk=>{
+      chk.addEventListener("change", ()=>{
+        const id = chk.getAttribute("data-select");
+        if(chk.checked){ state.selection[id] = 1; } else { delete state.selection[id]; }
+        render();
+      });
+    });
+    app.querySelectorAll("[data-qty]").forEach(inp=>{
+      inp.addEventListener("input", ()=>{
+        const id = inp.getAttribute("data-qty");
+        const max = parseInt(inp.getAttribute("max")||"999",10);
+        let v = parseInt(inp.value||"1",10);
+        if(isNaN(v) || v<1) v=1;
+        if(v>max) v=max;
+        state.selection[id] = v;
+      });
+    });
+
+    const confirmBtn = document.getElementById("confirmEntnahme");
+    if(confirmBtn) confirmBtn.addEventListener("click", async ()=>{
+      const entries = Object.entries(state.selection).filter(([id,qty])=> qty>0 && state.cables.some(c=>c.id===id && c.boxId===state.activeBoxId));
+      if(!entries.length) return;
+      confirmBtn.disabled = true; confirmBtn.textContent = "Wird gespeichert …";
+      for(const [cableId, qty] of entries){ await recordMovement(cableId, "entnahme", qty, state.user); }
+      state.selection = {}; render();
+      showToast("Entnahme bestätigt — Bestand aktualisiert");
+    });
+
+    const search = document.getElementById("globalSearch");
+    if(search){
+      search.addEventListener("input", ()=>{
+        state.search = search.value;
+        const wasFocused = document.activeElement === search;
+        render();
+        if(wasFocused){ const el=document.getElementById("globalSearch"); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      });
+    }
+
+    const fc = document.getElementById("filterCategory");
+    if(fc) fc.addEventListener("change", ()=>{ state.filters.category = fc.value; render(); });
+    const fb = document.getElementById("filterBox");
+    if(fb) fb.addEventListener("change", ()=>{ state.filters.box = fb.value; render(); });
+    const fu = document.getElementById("filterUser");
+    if(fu) fu.addEventListener("change", ()=>{ state.filters.user = fu.value; render(); });
+
+    const userInput = document.getElementById("userNameInput");
+    if(userInput) userInput.addEventListener("change", async ()=>{
+      state.user = userInput.value.trim();
+      await sSet("current-user", state.user, false);
+      showToast("Name gespeichert");
+    });
+
+    const resetBtn = document.querySelector('[data-action="reset-demo"]');
+    if(resetBtn) resetBtn.addEventListener("click", async ()=>{
+      if(!confirm("Wirklich für alle Nutzer auf den Ausgangsbestand zurücksetzen? Der komplette Verlauf geht dabei verloren.")) return;
+      resetBtn.disabled = true; resetBtn.textContent = "Setze zurück …";
+      const boxes = demoBoxes(); const cables = demoCables();
+      await sSet("boxes", boxes, true);
+      await sSet("cables", cables, true);
+      state.boxes = boxes; state.cables = cables;
+      const existingKeys = await sList("movements:", true);
+      await Promise.all(existingKeys.map(k => sDelete(k, true)));
+      state.movKeyCache = {}; state.movements = [];
+      render();
+      showToast("Zurückgesetzt auf Ausgangsbestand");
+    });
+  }
+
+  async function init(){
+    await loadBoxesAndCables();
+    await syncMovements();
+    state.user = (await sGet("current-user", false)) || "";
+
+    const params = new URLSearchParams(location.search);
+    const kiste = params.get("kiste");
+    if(kiste && state.boxes.some(b=>b.id===kiste)){
+      state.activeBoxId = kiste; state.view = "boxDetail";
+    }
+
+    state.ready = true;
+    render();
+
+    setInterval(async ()=>{
+      await syncMovements();
+      if(["dashboard","cables","cableDetail","movements","boxDetail"].includes(state.view)){ render(); }
+    }, 8000);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
