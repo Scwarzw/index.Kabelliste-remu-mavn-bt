@@ -2,166 +2,566 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Materiallager</title>
+<meta name="description" content="Material im Servicefahrzeug scannen, entnehmen und live nachverfolgen.">
+<meta name="theme-color" content="#090B0F">
+<meta name="app-version" content="3.5">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lager">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
+  /* ================================================================
+     Materiallager — Designsystem
+     Dunkle Werkstattoberfläche, Pegelanzeige als Signaturelement
+     ================================================================ */
   :root{
-    --ink:#1A1B1E;
-    --paper:#F4F1E8;
-    --panel:#FFFFFF;
-    --line:#DAD3C2;
-    --line-strong:#C6BDA5;
-    --amber:#E2963A;
-    --amber-dark:#C97A22;
-    --ok:#3F8F5F; --ok-bg:#E4F3EA;
-    --warn:#B5680A; --warn-bg:#FCEFDC;
-    --danger:#B23A28; --danger-bg:#FBE7E3;
-    --muted:#8A8370;
-    --radius:10px;
+    --bg:#0D0F13;
+    --surface:#151920;
+    --surface-2:#1B212A;
+    --surface-3:#232B36;
+    --line:rgba(255,255,255,.07);
+    --line-2:rgba(255,255,255,.14);
+    --text:#EDF1F6;
+    --muted:#96A0AE;
+    --accent:#5B8CFF;
+    --accent-soft:rgba(91,140,255,.14);
+    --ok:#35D08A;     --ok-bg:rgba(53,208,138,.13);
+    --warn:#F2B33D;   --warn-bg:rgba(242,179,61,.13);
+    --danger:#FF5C64; --danger-bg:rgba(255,92,100,.13);
+    --radius:14px;
+    --nav-h:66px;
+    --sb:env(safe-area-inset-bottom,0px);
+    --shadow:0 18px 40px -22px rgba(0,0,0,.9);
   }
-  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
-  html,body{margin:0; padding:0; background:var(--paper); color:var(--ink); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased;}
-  h1,h2,h3,.display{font-family:'Barlow Condensed',sans-serif; font-weight:700; letter-spacing:0.01em; text-transform:uppercase;}
-  .mono{font-family:'JetBrains Mono',monospace;}
-  button{font-family:inherit; cursor:pointer;}
-  input,select{font-family:inherit;}
-  a{color:inherit;}
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:'Inter',system-ui,-apple-system,sans-serif; -webkit-font-smoothing:antialiased;
+    overscroll-behavior-y:none; font-size:15px;}
+  h1,h2,h3,.display{font-family:'Barlow Condensed','Inter',sans-serif; font-weight:700; letter-spacing:.012em; text-transform:uppercase; margin:0;}
+  .mono, .num, .stock-num, .mv-qty, .qty-input, .stepper .val{font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;}
+  button{font-family:inherit; cursor:pointer; border:none; background:none; color:inherit;}
+  input,select,textarea{font-family:inherit; color:inherit;}
+  a{color:var(--accent);}
+  svg{stroke-linecap:round; stroke-linejoin:round;}
 
-  #app{max-width:520px; margin:0 auto; min-height:100vh; padding-bottom:78px; position:relative;}
-  @media (min-width:860px){
-    #app{max-width:1080px; padding-bottom:24px;}
-  }
+  #app{max-width:560px; margin:0 auto; min-height:100vh;
+       padding-bottom:calc(var(--nav-h) + var(--sb) + 24px); position:relative;}
+  @media (min-width:900px){ #app{max-width:1180px; padding-bottom:32px;} }
 
-  .topbar{position:sticky; top:0; z-index:20; background:var(--paper); border-bottom:2px solid var(--ink); padding:14px 16px 10px;}
-  .topbar-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
-  .brand{display:flex; align-items:center; gap:8px;}
-  .brand-mark{width:30px; height:30px; background:var(--ink); border-radius:6px; display:flex; align-items:center; justify-content:center; color:var(--amber); font-family:'Barlow Condensed'; font-weight:700; font-size:16px;}
-  .brand h1{font-size:20px; margin:0; line-height:1;}
-  .brand small{display:block; font-family:'Inter'; text-transform:none; font-weight:500; font-size:11px; color:var(--muted); letter-spacing:0;}
-  .icon-btn{width:36px; height:36px; border-radius:8px; border:1.5px solid var(--line-strong); background:var(--panel); display:flex; align-items:center; justify-content:center;}
-  .search-row{margin-top:10px; display:flex; gap:8px;}
-  .search-input{flex:1; padding:10px 12px; border:1.5px solid var(--line-strong); border-radius:8px; background:var(--panel); font-size:14px;}
-  .search-input:focus{outline:2px solid var(--amber); outline-offset:1px;}
+  /* ---------- Kopfzeile ---------- */
+  .topbar{position:sticky; top:0; z-index:20; background:rgba(13,15,19,.86);
+    backdrop-filter:saturate(160%) blur(14px); border-bottom:1px solid var(--line);
+    padding:calc(env(safe-area-inset-top,0px) + 12px) 18px 12px;}
+  .topbar-row{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  .brand{display:flex; align-items:center; gap:11px; min-width:0;}
+  .brand-mark{width:34px; height:34px; flex:none; border-radius:10px; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(145deg,var(--accent),#3D6BE0); color:#fff;
+    font-family:'Barlow Condensed'; font-weight:700; font-size:18px; letter-spacing:.02em;
+    box-shadow:0 6px 16px -8px var(--accent);}
+  .brand h1{font-size:19px; line-height:1.05;}
+  .brand small{display:block; font-family:'Inter'; text-transform:none; font-weight:500;
+    font-size:11.5px; color:var(--muted); letter-spacing:0; margin-top:2px;}
+  .icon-btn{width:40px; height:40px; flex:none; border-radius:12px; border:1px solid var(--line-2);
+    background:var(--surface); display:flex; align-items:center; justify-content:center; transition:background .15s, transform .1s;}
+  .icon-btn svg{width:19px; height:19px; stroke:currentColor; fill:none; stroke-width:1.8;}
+  .icon-btn:active{transform:scale(.93);}
+  .icon-btn:hover{background:var(--surface-2);}
+  .search-row{margin-top:12px; position:relative;}
+  .search-input{width:100%; padding:12px 14px 12px 40px; border:1px solid var(--line-2); border-radius:12px;
+    background:var(--surface); font-size:16px; color:var(--text); transition:border-color .15s, background .15s;}
+  .search-input::placeholder{color:#6C7684;}
+  .search-input:focus{outline:none; border-color:var(--accent); background:var(--surface-2);}
+  .search-row .s-ico{position:absolute; left:13px; top:50%; transform:translateY(-50%); width:17px; height:17px;
+    stroke:var(--muted); fill:none; stroke-width:1.9; pointer-events:none;}
+  .sync-dot{width:7px; height:7px; border-radius:50%; background:var(--ok); display:inline-block; margin-right:6px; vertical-align:1px;}
 
-  .view{padding:16px;}
-  @media (min-width:860px){ .view{padding:24px 28px;} }
+  .view{padding:18px; animation:fade .22s ease;}
+  @media (min-width:900px){ .view{padding:26px 30px;} }
+  @keyframes fade{from{opacity:0; transform:translateY(5px);}}
 
-  .eyebrow{font-family:'Barlow Condensed'; font-weight:600; font-size:12px; letter-spacing:0.14em; text-transform:uppercase; color:var(--muted); margin:0 0 8px;}
-  .section-title{font-size:22px; margin:0 0 12px;}
+  .eyebrow{font-family:'Barlow Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--muted); margin:0 0 6px;}
+  .section-title{font-size:25px; margin:0 0 10px; letter-spacing:.01em;}
+  .lead{font-size:13.5px; color:var(--muted); margin:0 0 18px; line-height:1.5;}
 
-  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px;}
-  @media (min-width:860px){ .stat-grid{grid-template-columns:repeat(5,1fr);} }
-  .stat-card{background:var(--panel); border:1.5px solid var(--line); border-radius:var(--radius); padding:12px 14px;}
-  .stat-card .num{font-family:'JetBrains Mono'; font-weight:600; font-size:26px; line-height:1;}
-  .stat-card .label{font-size:11.5px; color:var(--muted); margin-top:4px; font-weight:500;}
+  /* ---------- Kennzahlen ---------- */
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px;}
+  @media (min-width:900px){ .stat-grid{grid-template-columns:repeat(4,1fr);} }
+  .stat-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:15px 16px; text-align:left; width:100%; transition:border-color .15s, transform .1s;}
+  .stat-card .num{font-weight:600; font-size:28px; line-height:1;}
+  .stat-card .label{font-size:11.5px; color:var(--muted); margin-top:6px; font-weight:500;}
+  button.stat-card:active{transform:scale(.985);}
+  button.stat-card:hover{border-color:var(--line-2);}
   .stat-card.alert .num{color:var(--warn);}
   .stat-card.alert.zero .num{color:var(--danger);}
 
-  .quick-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:22px;}
-  .quick-btn{background:var(--ink); color:#fff; border:none; border-radius:var(--radius); padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:11.5px; font-weight:600;}
-  .quick-btn svg{width:20px; height:20px;}
+  .quick-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:24px;}
+  .quick-btn{background:var(--surface); border:1px solid var(--line); color:var(--text); border-radius:var(--radius);
+    padding:16px 8px; display:flex; flex-direction:column; align-items:center; gap:9px;
+    font-size:12px; font-weight:600; text-align:center; line-height:1.25; transition:background .15s, transform .1s, border-color .15s;}
+  .quick-btn svg{width:21px; height:21px; stroke:var(--muted); fill:none; stroke-width:1.8; transition:stroke .15s;}
+  .quick-btn:hover{background:var(--surface-2); border-color:var(--line-2);}
+  .quick-btn:hover svg{stroke:var(--text);}
+  .quick-btn:active{transform:scale(.96);}
+  .quick-btn.accent{background:linear-gradient(150deg,var(--accent),#3D6BE0); border-color:transparent; color:#fff;
+    box-shadow:0 12px 26px -16px var(--accent);}
+  .quick-btn.accent svg{stroke:#fff;}
 
-  .subhead{display:flex; align-items:center; justify-content:space-between; margin:22px 0 10px;}
-  .link-btn{font-size:12.5px; font-weight:600; color:var(--amber-dark); background:none; border:none; padding:0;}
+  .subhead{display:flex; align-items:center; justify-content:space-between; gap:12px; margin:26px 0 12px;}
+  .subhead h3{font-size:17px;}
+  .link-btn{font-size:12.5px; font-weight:600; color:var(--accent); padding:2px 0;}
 
-  .crate-card{position:relative; background:var(--panel); border:1.5px solid var(--ink); border-radius:8px; padding:14px 16px 14px 14px; margin-bottom:12px; display:flex; align-items:center; gap:12px; overflow:hidden;}
-  .crate-card::before{content:""; position:absolute; left:44px; top:-1px; bottom:-1px; border-left:2px dashed var(--line-strong);}
-  .crate-punch{width:38px; flex:0 0 38px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;}
-  .crate-punch .hole{width:8px; height:8px; border-radius:50%; background:var(--paper); border:1.5px solid var(--ink);}
-  .crate-id{font-family:'Barlow Condensed'; font-weight:700; font-size:15px; background:var(--ink); color:var(--amber); padding:1px 7px; border-radius:4px; letter-spacing:0.03em;}
+  /* ---------- Kistenkarte ---------- */
+  .crate-card{position:relative; width:100%; text-align:left; display:flex; align-items:center; gap:14px;
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:15px 16px; margin-bottom:10px; overflow:hidden; transition:border-color .15s, background .15s, transform .1s;}
+  .crate-card::after{content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--accent); opacity:.75;}
+  .crate-card:hover{background:var(--surface-2); border-color:var(--line-2);}
+  button.crate-card:active{transform:scale(.995);}
+  .crate-punch{display:none;}
+  .crate-id{display:inline-flex; align-items:center; font-family:'JetBrains Mono'; font-weight:700; font-size:11.5px;
+    background:var(--surface-3); color:var(--accent); padding:3px 8px; border-radius:6px; letter-spacing:.06em;}
   .crate-body{flex:1; min-width:0;}
-  .crate-body h3{font-size:17px; margin:2px 0 3px; text-transform:none; font-weight:700;}
+  .crate-body h3{font-size:16.5px; margin:7px 0 4px; text-transform:none; font-family:'Inter'; font-weight:600; letter-spacing:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .crate-meta{font-size:12px; color:var(--muted); font-weight:500;}
-  .crate-arrow{color:var(--muted); font-size:18px;}
+  .crate-arrow{color:#5A6472; font-size:20px; flex:none;}
 
-  .chip{display:inline-flex; align-items:center; font-size:11px; font-weight:700; padding:3px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:0.03em;}
+  .chip{display:inline-flex; align-items:center; font-size:10.5px; font-weight:600; padding:3px 8px;
+    border-radius:6px; letter-spacing:.04em; text-transform:uppercase; background:var(--surface-3); color:var(--muted);}
 
-  .cable-row{background:var(--panel); border:1.5px solid var(--line); border-radius:var(--radius); padding:12px 14px; margin-bottom:9px;}
-  .cable-row-top{display:flex; align-items:flex-start; justify-content:space-between; gap:10px;}
-  .cable-name{font-size:15px; font-weight:700; margin:0 0 4px;}
-  .cable-sub{display:flex; gap:6px; align-items:center; flex-wrap:wrap;}
-  .stock-badge{font-family:'JetBrains Mono'; font-size:12px; font-weight:600; padding:3px 9px; border-radius:6px; white-space:nowrap;}
-  .stock-ok{background:var(--ok-bg); color:var(--ok);}
-  .stock-warn{background:var(--warn-bg); color:var(--warn);}
-  .stock-danger{background:var(--danger-bg); color:var(--danger);}
+  /* ---------- Materialzeile mit Pegelanzeige ---------- */
+  .cable-row{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:12px 13px; margin-bottom:9px; transition:border-color .15s, background .15s;}
+  .cable-row:hover{border-color:var(--line-2);}
+  .cable-row.picked{border-color:var(--accent); background:var(--accent-soft);}
+  .row-main{display:flex; align-items:center; gap:12px;}
+  .row-main .grow{flex:1; min-width:0; text-align:left;}
+  .cable-name{font-size:15px; font-weight:600; margin:0 0 5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cable-sub{display:flex; gap:7px; align-items:center; flex-wrap:wrap;}
+  .cable-sub .where{font-size:11.5px; color:var(--muted);}
 
-  .checkline{display:flex; align-items:center; gap:10px; padding:10px 4px;}
-  .checkline input[type=checkbox]{width:19px; height:19px; accent-color:var(--ink);}
-  .checkline label{flex:1; font-size:14.5px; font-weight:600;}
-  .qty-input{width:60px; padding:6px 8px; border:1.5px solid var(--line-strong); border-radius:6px; text-align:center; font-family:'JetBrains Mono'; font-size:14px;}
+  .stock-badge{display:flex; flex-direction:column; align-items:flex-end; gap:5px; flex:none;}
+  .stock-num{font-size:15px; font-weight:600; line-height:1;}
+  .stock-num span{font-size:10.5px; color:var(--muted); font-weight:400; margin-left:3px;}
+  .level{display:flex; gap:2.5px;}
+  .level i{width:7px; height:4px; border-radius:1px; background:var(--surface-3); display:block;}
+  .stock-ok .stock-num{color:var(--text);}      .stock-ok .level i.on{background:var(--ok);}
+  .stock-warn .stock-num{color:var(--warn);}    .stock-warn .level i.on{background:var(--warn);}
+  .stock-danger .stock-num{color:var(--danger);} .stock-danger .level i.on{background:var(--danger);}
 
-  .btn{border-radius:8px; border:none; padding:11px 16px; font-weight:700; font-size:14px; display:inline-flex; align-items:center; justify-content:center; gap:6px;}
-  .btn-primary{background:var(--ink); color:#fff; width:100%;}
-  .btn-primary:disabled{background:var(--line-strong); color:#fff; cursor:not-allowed;}
-  .btn-outline{background:transparent; border:1.5px solid var(--line-strong); color:var(--ink);}
-  .btn-sm{padding:7px 12px; font-size:12.5px; border-radius:7px;}
-  .sticky-cta{position:sticky; bottom:78px; padding-top:10px; background:linear-gradient(to top, var(--paper) 70%, transparent);}
-  @media (min-width:860px){ .sticky-cta{bottom:16px;} }
+  .take-btn{flex:none; width:54px; height:46px; border-radius:12px; background:var(--surface-3); color:var(--text);
+    font-family:'JetBrains Mono'; font-weight:700; font-size:15px; border:1px solid var(--line-2); transition:background .15s, transform .09s;}
+  .take-btn:hover{background:var(--accent); border-color:transparent; color:#fff;}
+  .take-btn:active{transform:scale(.92);}
+  .take-btn:disabled{background:transparent; color:#4E5764; border-color:var(--line); cursor:not-allowed;}
+  .pick-box{width:22px; height:22px; flex:none; accent-color:var(--accent);}
+  .qty-line{display:flex; align-items:center; gap:9px; padding:12px 2px 2px; border-top:1px solid var(--line); margin-top:12px;}
+  .qty-input{width:66px; padding:8px; border:1px solid var(--line-2); border-radius:9px; text-align:center;
+    font-size:15px; background:var(--surface-2); color:var(--text);}
 
-  .bottom-nav{position:fixed; bottom:0; left:0; right:0; background:var(--panel); border-top:2px solid var(--ink); display:flex; z-index:30;}
-  @media (min-width:860px){ .bottom-nav{display:none;} }
-  .nav-btn{flex:1; background:none; border:none; padding:9px 4px 8px; display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--muted); font-size:10.5px; font-weight:600;}
-  .nav-btn.active{color:var(--ink);}
-  .nav-btn svg{width:21px; height:21px;}
-  .nav-btn.active svg{stroke:var(--amber-dark);}
+  /* ---------- Schaltflächen ---------- */
+  .btn{border-radius:12px; padding:13px 17px; font-weight:600; font-size:14.5px;
+    display:inline-flex; align-items:center; justify-content:center; gap:8px; transition:background .15s, transform .09s, border-color .15s;}
+  .btn svg{width:17px; height:17px; stroke:currentColor; fill:none; stroke-width:1.9;}
+  .btn:active{transform:scale(.985);}
+  .btn-primary{background:linear-gradient(150deg,var(--accent),#3D6BE0); color:#fff; width:100%;
+    box-shadow:0 14px 30px -18px var(--accent);}
+  .btn-primary:disabled{background:var(--surface-3); color:#5C6673; box-shadow:none; cursor:not-allowed;}
+  .btn-accent{background:var(--ok); color:#07120C; width:100%;}
+  .btn-outline{background:var(--surface); border:1px solid var(--line-2); color:var(--text);}
+  .btn-outline:hover{background:var(--surface-2);}
+  .btn-sm{padding:9px 13px; font-size:13px; border-radius:10px;}
+  .btn-danger{color:var(--danger); border:1px solid rgba(255,92,100,.4); background:transparent;}
+  .btn-row{display:flex; gap:9px;}
+  .btn-row .btn{flex:1;}
+  .sticky-cta{position:sticky; bottom:calc(var(--nav-h) + var(--sb)); padding:12px 0 6px;
+    background:linear-gradient(to top, var(--bg) 68%, transparent); z-index:10;}
+  @media (min-width:900px){ .sticky-cta{bottom:18px;} }
 
+  /* ---------- Navigation ---------- */
+  .bottom-nav{position:fixed; bottom:0; left:0; right:0; z-index:30; display:flex;
+    background:rgba(21,25,32,.94); backdrop-filter:blur(16px); border-top:1px solid var(--line);
+    padding-bottom:var(--sb); height:calc(var(--nav-h) + var(--sb));}
+  @media (min-width:900px){ .bottom-nav{display:none;} }
+  .nav-btn{flex:1; padding:10px 2px 8px; display:flex; flex-direction:column; align-items:center; gap:5px;
+    color:#78828F; font-size:10.5px; font-weight:600; transition:color .15s;}
+  .nav-btn svg{width:21px; height:21px; stroke:currentColor; fill:none; stroke-width:1.8;}
+  .nav-btn.active{color:var(--text);}
+  .nav-btn.active svg{stroke:var(--accent);}
+  .nav-scan{flex:0 0 78px; display:flex; align-items:flex-start; justify-content:center;}
+  .nav-scan button{width:58px; height:58px; margin-top:-20px; border-radius:19px;
+    background:linear-gradient(150deg,var(--accent),#3D6BE0); color:#fff;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+    box-shadow:0 14px 28px -12px var(--accent); border:3px solid var(--bg); transition:transform .12s;}
+  .nav-scan svg{width:21px; height:21px; stroke:#fff; fill:none; stroke-width:1.9;}
+  .nav-scan button:active{transform:scale(.92);}
   .side-nav{display:none;}
-  @media (min-width:860px){
-    .side-nav{display:flex; gap:6px; padding:0 28px 18px; border-bottom:2px solid var(--ink);}
-    .side-nav button{background:none; border:none; padding:8px 4px; font-family:'Barlow Condensed'; font-weight:700; font-size:14px; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); border-bottom:3px solid transparent;}
-    .side-nav button.active{color:var(--ink); border-color:var(--amber);}
+  @media (min-width:900px){
+    .side-nav{display:flex; gap:6px; align-items:center; padding:0 30px 16px; border-bottom:1px solid var(--line);}
+    .side-nav button{padding:9px 14px; border-radius:10px; font-size:13.5px; font-weight:600; color:var(--muted); transition:background .15s, color .15s;}
+    .side-nav button:hover{background:var(--surface); color:var(--text);}
+    .side-nav button.active{background:var(--surface-2); color:var(--text);}
+    .side-nav .scan-desktop{margin-left:auto; background:linear-gradient(150deg,var(--accent),#3D6BE0); color:#fff;}
   }
 
-  .filter-bar{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:14px;}
-  .filter-bar select, .filter-bar input{padding:8px 10px; border:1.5px solid var(--line-strong); border-radius:7px; background:var(--panel); font-size:13px; white-space:nowrap;}
+  .filter-bar{display:flex; gap:8px; overflow-x:auto; padding-bottom:6px; margin-bottom:16px; scrollbar-width:none;}
+  .filter-bar::-webkit-scrollbar{display:none;}
+  .filter-bar select{padding:9px 11px; border:1px solid var(--line-2); border-radius:10px; background:var(--surface);
+    color:var(--text); font-size:13px; white-space:nowrap; flex:none;}
+  .filter-bar select:focus{outline:none; border-color:var(--accent);}
 
-  .movement-row{display:flex; gap:10px; padding:11px 0; border-bottom:1px solid var(--line);}
+  /* ---------- Bewegungen ---------- */
+  .movement-row{display:flex; gap:12px; padding:13px 0; border-bottom:1px solid var(--line); align-items:flex-start;}
   .movement-row:last-child{border-bottom:none;}
-  .mv-icon{width:30px; height:30px; border-radius:7px; flex:0 0 30px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono'; font-weight:700; font-size:13px;}
+  .mv-icon{width:32px; height:32px; border-radius:10px; flex:0 0 32px; display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono'; font-weight:700; font-size:14px;}
   .mv-out{background:var(--danger-bg); color:var(--danger);}
   .mv-in{background:var(--ok-bg); color:var(--ok);}
+  .mv-fix{background:var(--surface-3); color:var(--muted);}
   .mv-main{flex:1; min-width:0;}
-  .mv-title{font-size:13.5px; font-weight:700;}
-  .mv-meta{font-size:11.5px; color:var(--muted); margin-top:2px;}
-  .mv-qty{font-family:'JetBrains Mono'; font-weight:700; font-size:14px; white-space:nowrap;}
+  .mv-title{font-size:14px; font-weight:600;}
+  .mv-meta{font-size:11.5px; color:var(--muted); margin-top:3px;}
+  .mv-qty{font-weight:700; font-size:14px; white-space:nowrap;}
+  .pending-pill{display:inline-block; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.07em;
+    background:var(--warn-bg); color:var(--warn); padding:2px 6px; border-radius:5px; margin-left:7px; vertical-align:1px;}
 
-  .empty-state{text-align:center; padding:40px 20px; color:var(--muted);}
-  .empty-state .glyph{font-size:34px; margin-bottom:10px;}
-  .empty-state p{font-size:13.5px; margin:4px 0 0;}
+  .panel{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:4px 16px;}
 
-  .toast{position:fixed; left:16px; right:16px; bottom:90px; background:var(--ink); color:#fff; padding:12px 16px; border-radius:9px; font-size:13.5px; font-weight:600; z-index:50; display:flex; align-items:center; gap:8px; box-shadow:0 6px 18px rgba(0,0,0,0.25);}
-  @media (min-width:860px){ .toast{left:auto; right:28px; bottom:24px; max-width:340px;} }
+  .empty-state{text-align:center; padding:34px 22px; color:var(--muted);
+    border:1px dashed var(--line-2); border-radius:var(--radius); background:var(--surface);}
+  .empty-state .glyph{margin:0 auto 12px; width:44px; height:44px; border-radius:13px; background:var(--surface-3);
+    display:flex; align-items:center; justify-content:center;}
+  .empty-state .glyph svg{width:21px; height:21px; stroke:var(--muted); fill:none; stroke-width:1.7;}
+  .empty-state strong{display:block; color:var(--text); font-family:'Barlow Condensed'; font-size:17px; text-transform:uppercase; letter-spacing:.02em;}
+  .empty-state p{font-size:13.5px; margin:5px 0 0; line-height:1.5;}
 
-  .qr-box{background:var(--panel); border:1.5px solid var(--ink); border-radius:12px; padding:20px; text-align:center; margin-top:14px;}
-  .qr-box img{width:180px; height:180px; image-rendering:pixelated;}
-  .qr-box .mono{font-size:12px; color:var(--muted); margin-top:8px; word-break:break-all;}
+  .toast{position:fixed; left:18px; right:18px; bottom:calc(var(--nav-h) + var(--sb) + 16px);
+    background:var(--surface-3); color:var(--text); padding:14px 15px; border-radius:13px; font-size:13.5px; font-weight:500;
+    z-index:80; display:flex; align-items:center; gap:14px; box-shadow:var(--shadow); border:1px solid var(--line-2);
+    animation:slideUp .22s cubic-bezier(.2,.9,.3,1);}
+  @keyframes slideUp{from{transform:translateY(16px); opacity:0;}}
+  .toast .t{flex:1;}
+  .toast button{border:1px solid var(--line-2); border-radius:9px; padding:7px 11px; color:var(--text);
+    font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;}
+  .toast.bad{background:#3A1B1F; border-color:rgba(255,92,100,.4); color:#FFD9DB;}
+  @media (min-width:900px){ .toast{left:auto; right:30px; bottom:26px; max-width:400px;} }
 
-  .kicker-input{width:100%; padding:10px 12px; border:1.5px solid var(--line-strong); border-radius:8px; font-size:14px; margin-bottom:10px;}
-  .field-label{font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); display:block; margin-bottom:5px;}
-  .sync-dot{width:7px; height:7px; border-radius:50%; background:var(--ok); display:inline-block; margin-right:5px;}
-  .footer-note{text-align:center; font-size:11px; color:var(--muted); padding:18px 20px 10px;}
+  .qr-box{background:#fff; border-radius:var(--radius); padding:22px; text-align:center;}
+  .qr-box img{width:190px; height:190px; image-rendering:pixelated;}
+  .qr-box .mono{font-size:11px; color:#666; margin:10px 0 0; word-break:break-all;}
+
+  .field{margin-bottom:14px;}
+  .field-label{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.09em;
+    color:var(--muted); display:block; margin-bottom:7px;}
+  .kicker-input, .field input, .field select, .field textarea{width:100%; padding:12px 13px;
+    border:1px solid var(--line-2); border-radius:11px; font-size:16px; background:var(--surface-2); color:var(--text);}
+  .field input:focus, .field select:focus, .field textarea:focus{outline:none; border-color:var(--accent);}
+  .field input::placeholder, .field textarea::placeholder{color:#68727F;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .hint{font-size:12px; color:var(--muted); margin-top:6px; line-height:1.5;}
+
+  /* ---------- Bottom-Sheet ---------- */
+  #sheet-layer{position:fixed; inset:0; z-index:60; pointer-events:none;}
+  #sheet-layer.open{pointer-events:auto;}
+  #sheet-layer .backdrop{position:absolute; inset:0; background:rgba(5,7,10,.66); opacity:0; transition:opacity .22s; backdrop-filter:blur(2px);}
+  #sheet-layer.open .backdrop{opacity:1;}
+  .sheet{position:absolute; left:0; right:0; bottom:0; max-height:92%; overflow:auto;
+    background:var(--surface); border-top:1px solid var(--line-2); border-radius:22px 22px 0 0;
+    padding:8px 18px calc(22px + var(--sb)); transform:translateY(102%);
+    transition:transform .28s cubic-bezier(.2,.9,.28,1); max-width:560px; margin:0 auto; box-shadow:var(--shadow);}
+  #sheet-layer.open .sheet{transform:translateY(0);}
+  .sheet.tall{height:100%; max-height:100%; border-radius:0; padding-top:calc(env(safe-area-inset-top,0px) + 12px);}
+  .grip{width:38px; height:4px; border-radius:2px; background:var(--line-2); margin:5px auto 16px;}
+  .sheet h2{font-size:22px; margin:0 0 5px;}
+  .sheet .sub{color:var(--muted); font-size:13px; margin:0 0 18px; line-height:1.5;}
+  .sheet-head{display:flex; align-items:flex-start; gap:12px;}
+  .sheet-head .grow{flex:1; min-width:0;}
+
+  .stepper{display:flex; align-items:center; justify-content:center; gap:16px; margin:10px 0 14px;}
+  .stepper button{width:58px; height:58px; border-radius:17px; border:1px solid var(--line-2);
+    background:var(--surface-2); font-size:26px; display:flex; align-items:center; justify-content:center; transition:background .15s, transform .09s;}
+  .stepper button:hover{background:var(--surface-3);}
+  .stepper button:active{transform:scale(.92);}
+  .stepper .val{font-weight:700; font-size:42px; min-width:98px; text-align:center;}
+  .quick-qty{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:18px;}
+  .quick-qty button{padding:8px 15px; border-radius:10px; border:1px solid var(--line-2); background:var(--surface-2);
+    font-family:'JetBrains Mono'; font-size:13px; transition:background .15s;}
+  .quick-qty button:hover{background:var(--surface-3);}
+
+  /* ---------- Kamera ---------- */
+  .cam-wrap{position:relative; border-radius:16px; overflow:hidden; background:#05070A; aspect-ratio:1/1; margin-bottom:16px;}
+  .cam-wrap video{width:100%; height:100%; object-fit:cover; display:block;}
+  .reticle{position:absolute; inset:15%; pointer-events:none;}
+  .reticle i{position:absolute; width:34px; height:34px; border:3px solid var(--accent);}
+  .reticle i:nth-child(1){top:0; left:0; border-right:0; border-bottom:0; border-radius:5px 0 0 0;}
+  .reticle i:nth-child(2){top:0; right:0; border-left:0; border-bottom:0; border-radius:0 5px 0 0;}
+  .reticle i:nth-child(3){bottom:0; left:0; border-right:0; border-top:0; border-radius:0 0 0 5px;}
+  .reticle i:nth-child(4){bottom:0; right:0; border-left:0; border-top:0; border-radius:0 0 5px 0;}
+  .cam-note{position:absolute; left:0; right:0; bottom:12px; text-align:center; color:#fff; font-size:11px;
+    font-weight:600; text-transform:uppercase; letter-spacing:.12em; text-shadow:0 1px 6px rgba(0,0,0,.9);}
+  .torch{position:absolute; top:12px; right:12px; width:44px; height:44px; border-radius:13px;
+    background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center;}
+  .torch svg{width:20px; height:20px; stroke:#fff; fill:none; stroke-width:1.8;}
+  .torch[aria-pressed="true"]{background:var(--warn);}
+  .torch[aria-pressed="true"] svg{stroke:#101418;}
+
+  .banner{display:flex; gap:12px; align-items:center; background:var(--warn-bg); border:1px solid rgba(242,179,61,.35);
+    color:var(--warn); border-radius:12px; padding:12px 14px; font-size:12.5px; font-weight:500; margin-bottom:16px; line-height:1.45;}
+  .banner.ok{background:var(--ok-bg); border-color:rgba(53,208,138,.35); color:var(--ok);}
+  .banner button{margin-left:auto; font-size:11.5px; font-weight:700; color:inherit; text-decoration:underline; white-space:nowrap;}
+
+  .setup-card{background:var(--surface); border:1px solid rgba(242,179,61,.35); border-radius:var(--radius);
+    padding:18px; margin-bottom:20px;}
+  .setup-card h3{font-size:17px; color:var(--warn); margin-bottom:8px;}
+  .setup-card p{font-size:13.5px; color:var(--muted); margin:0 0 14px; line-height:1.55;}
+
+  .lbl-pick{display:flex; align-items:center; gap:13px; background:var(--surface-2); border:1px solid var(--line);
+    border-radius:11px; padding:12px 14px; margin-bottom:8px;}
+  .lbl-pick input{width:21px; height:21px; flex:none; accent-color:var(--accent);}
+  .lbl-pick .grow{flex:1; min-width:0; font-size:14px; font-weight:500;}
+
+  .footer-note{text-align:center; font-size:11px; color:#5D6673; padding:20px 22px 12px;}
+
+  /* ---------- Druck (immer hell) ---------- */
+  #print-area{display:none;}
+  .print-label{width:88mm; height:54mm; border:1px dashed #999; border-radius:3mm; padding:4mm; display:flex; gap:3mm;
+    page-break-inside:avoid; break-inside:avoid; background:#fff; color:#000;}
+  .print-label .pl-txt{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .print-label .pl-id{font-family:'Barlow Condensed'; font-weight:700; font-size:16pt; background:#000; color:#fff;
+    padding:0 2mm; border-radius:1mm; align-self:flex-start; letter-spacing:.05em;}
+  .print-label .pl-name{font-family:'Barlow Condensed'; font-weight:700; font-size:14pt; line-height:1.05;
+    margin-top:1.5mm; text-transform:uppercase;}
+  .print-label .pl-list{font-size:7pt; line-height:1.35; margin-top:1.5mm; flex:1; overflow:hidden; color:#333;}
+  .print-label .pl-foot{font-size:6pt; letter-spacing:.06em; text-transform:uppercase; color:#666;}
+  .print-label img{width:32mm; height:32mm; align-self:center;}
+  @media print{
+    @page{size:A4; margin:8mm;}
+    html,body{background:#fff; color:#000;}
+    #app,#sheet-layer,.toast{display:none !important;}
+    #print-area{display:grid !important; grid-template-columns:88mm 88mm; gap:4mm; justify-content:center;}
+  }
+  .hide{display:none !important;}
+  @media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important;}}
+
+  /* ================================================================
+     Version 3.5 — Cockpit, Pegel, Ebenen
+     ================================================================ */
+  :root{
+    --bg:#090B0F;
+    --surface:#11141A;
+    --surface-2:#171B23;
+    --surface-3:#1F242E;
+    --line:rgba(255,255,255,.055);
+    --line-2:rgba(255,255,255,.10);
+    --text:#E9EDF3;
+    --muted:#8C96A5;
+    --accent:#4E9BFF;
+    --accent-2:#7FB8FF;
+    --accent-soft:rgba(78,155,255,.12);
+    --ok:#3ECF8E;   --ok-bg:rgba(62,207,142,.12);
+    --warn:#F0B429; --warn-bg:rgba(240,180,41,.12);
+    --crit:#FF5A5F; --crit-bg:rgba(255,90,95,.12);
+    --shadow-1:0 1px 2px rgba(0,0,0,.4);
+    --shadow-2:0 10px 30px -16px rgba(0,0,0,.85);
+  }
+  /* Statusfarben zentral */
+  .lv-ok{--c:var(--ok); --cbg:var(--ok-bg);}
+  .lv-warn{--c:var(--warn); --cbg:var(--warn-bg);}
+  .lv-crit{--c:var(--crit); --cbg:var(--crit-bg);}
+  .lv-idle{--c:var(--muted); --cbg:var(--surface-3);}
+
+  .dot{width:7px; height:7px; border-radius:50%; background:var(--c,var(--muted)); display:inline-block; flex:none;}
+  .tag{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; padding:4px 9px;
+       border-radius:7px; background:var(--cbg,var(--surface-3)); color:var(--c,var(--muted)); letter-spacing:.01em;}
+
+  /* ---- Karten ohne harte Rahmen ---- */
+  .stat-card, .cable-row, .crate-card, .panel, .empty-state, .quick-btn, .refill-card, .crit-card, .box-head, .detail-stock{
+    border:none; background:var(--surface); box-shadow:var(--shadow-1);
+  }
+  .cable-row, .crate-card, .refill-card, .crit-card{position:relative; overflow:hidden;}
+  .cable-row::before, .refill-card::before, .crit-card::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--c,transparent); opacity:.9;
+  }
+  .cable-row.lv-ok::before{opacity:0;}
+  .crate-card::after{display:none;}
+
+  /* ---- Fahrzeugstatus ---- */
+  .hero{background:linear-gradient(160deg,var(--surface-2),var(--surface)); border-radius:20px;
+        padding:20px; margin-bottom:14px; box-shadow:var(--shadow-2); position:relative; overflow:hidden;}
+  .hero::after{content:""; position:absolute; inset:0; border-radius:20px; pointer-events:none;
+        background:radial-gradient(120% 90% at 100% 0%, var(--cbg) 0%, transparent 58%);}
+  .hero-top{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  .hero-main{display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin:14px 0 16px;}
+  .hero-pct{display:flex; align-items:baseline; gap:8px;}
+  .hero-pct span{font-family:'JetBrains Mono'; font-weight:700; font-size:52px; line-height:.9; letter-spacing:-.02em;}
+  .hero-pct small{font-size:13px; color:var(--muted); font-weight:500;}
+  .hero-ring{width:46px; height:46px; border-radius:50%; flex:none; display:grid; place-items:center;
+    background:conic-gradient(var(--c) calc(var(--pct)*1%), var(--surface-3) 0);}
+  .hero-ring span{width:34px; height:34px; border-radius:50%; background:var(--surface); display:grid; place-items:center;}
+  .hero-bar{display:flex; gap:3px; height:6px; border-radius:3px; overflow:hidden; margin-bottom:12px;}
+  .hero-bar i{background:var(--c); border-radius:2px; transition:flex .4s ease;}
+  .hero-sub{font-size:12.5px; color:var(--muted); margin:0; line-height:1.5;}
+
+  .live-pill{display:inline-flex; align-items:center; gap:7px; font-size:11px; font-weight:600;
+    padding:5px 10px; border-radius:999px; background:var(--cbg,var(--surface-3)); color:var(--c,var(--muted));}
+
+  /* ---- Handlungsbedarf ---- */
+  .action-row{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px;}
+  .action{background:var(--surface); border-radius:14px; padding:14px 12px; text-align:left;
+    display:flex; flex-direction:column; gap:5px; box-shadow:var(--shadow-1); transition:transform .12s, background .15s;}
+  .action:active{transform:scale(.97);}
+  .action:hover{background:var(--surface-2);}
+  .action .n{font-family:'JetBrains Mono'; font-weight:700; font-size:26px; line-height:1; color:var(--c,var(--text));}
+  .action .l{font-size:11px; color:var(--muted); font-weight:500;}
+
+  /* ---- Kritische Positionen ---- */
+  .crit-card{display:flex; align-items:center; gap:14px; width:100%; text-align:left;
+    border-radius:14px; padding:14px 15px 14px 17px; margin-bottom:9px; transition:transform .12s, background .15s;}
+  .crit-card:active{transform:scale(.995);}
+  .crit-card:hover{background:var(--surface-2);}
+  .crit-main{flex:1; min-width:0;}
+  .crit-name{display:block; font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .crit-meta{display:block; font-size:11.5px; color:var(--muted); margin-top:4px;}
+  .crit-right{display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex:none;}
+  .crit-num{font-family:'JetBrains Mono'; font-weight:700; font-size:19px; color:var(--c); line-height:1;}
+  .crit-num small{font-size:12px; color:var(--muted); font-weight:400;}
+
+  .ok-state .glyph{background:var(--ok-bg) !important;}
+  .ok-state .glyph svg{stroke:var(--ok) !important;}
+  .ok-state{animation:okIn .4s cubic-bezier(.2,.9,.3,1);}
+  @keyframes okIn{from{opacity:0; transform:scale(.97);}}
+
+  /* ---- Heute / häufig ---- */
+  .today{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; background:var(--surface);
+    border-radius:14px; padding:15px; box-shadow:var(--shadow-1);}
+  .today div{display:flex; flex-direction:column; gap:4px;}
+  .today .n{font-family:'JetBrains Mono'; font-weight:700; font-size:22px; line-height:1;}
+  .today .l{font-size:11px; color:var(--muted);}
+  .tagline{display:flex; flex-wrap:wrap; gap:8px;}
+  .usebtn{background:var(--surface); border-radius:10px; padding:9px 12px; font-size:12.5px; font-weight:500;
+    display:inline-flex; align-items:center; gap:8px; box-shadow:var(--shadow-1); transition:background .15s;}
+  .usebtn:hover{background:var(--surface-2);}
+  .usebtn span{font-family:'JetBrains Mono'; font-size:11px; color:var(--muted);}
+
+  /* ---- Pegelanzeige ---- */
+  .level{display:flex; gap:2.5px; align-items:flex-end;}
+  .level i{width:6px; height:11px; border-radius:1.5px; background:rgba(255,255,255,.09); display:block; transition:background .25s;}
+  .level i.on{background:var(--c,var(--ok));}
+  .level i.mark{box-shadow:inset 0 -2px 0 0 rgba(255,255,255,.55);}
+  .stock-badge{display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex:none;}
+  .stock-num{font-family:'JetBrains Mono'; font-size:15px; font-weight:700; line-height:1; color:var(--c,var(--text));}
+  .stock-num span{font-size:11px; color:var(--muted); font-weight:400; margin-left:3px;}
+  .cable-row.lv-ok .stock-num{color:var(--text);}
+
+  /* ---- Kistenkarte ---- */
+  .crate-card{border-radius:16px; padding:15px 16px 15px 18px;}
+  .crate-top{display:flex; align-items:center; gap:9px; justify-content:space-between;}
+  .crate-bar{display:flex; gap:3px; height:4px; border-radius:2px; overflow:hidden; margin-top:11px;}
+  .crate-bar i{background:var(--c); border-radius:2px;}
+  .box-head{border-radius:18px; padding:17px; margin-bottom:16px;}
+
+  /* ---- Kategorienavigation ---- */
+  .cat-nav{display:flex; gap:8px; overflow-x:auto; padding:2px 0 8px; margin-bottom:8px; scrollbar-width:none;}
+  .cat-nav::-webkit-scrollbar{display:none;}
+  .cat-nav button{flex:none; padding:8px 14px; border-radius:10px; background:var(--surface); color:var(--muted);
+    font-size:12.5px; font-weight:600; white-space:nowrap; transition:background .15s, color .15s;}
+  .cat-nav button.on{background:var(--accent); color:#fff;}
+
+  /* ---- Nachfüllen ---- */
+  .refill-head{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; background:var(--surface);
+    border-radius:16px; padding:16px; margin-bottom:14px; box-shadow:var(--shadow-1);}
+  .refill-head div{display:flex; flex-direction:column; gap:4px;}
+  .refill-head .n{font-family:'JetBrains Mono'; font-weight:700; font-size:23px; line-height:1;}
+  .refill-head .n.lv-crit{color:var(--crit);} .refill-head .n.lv-warn{color:var(--warn);}
+  .refill-head .l{font-size:10.5px; color:var(--muted);}
+  .seg-switch{display:flex; gap:4px; background:var(--surface); border-radius:12px; padding:4px; margin-bottom:14px;}
+  .seg-switch button{flex:1; padding:9px; border-radius:9px; font-size:12.5px; font-weight:600; color:var(--muted); transition:background .18s, color .18s;}
+  .seg-switch button.on{background:var(--surface-3); color:var(--text);}
+  .refill-card{display:flex; align-items:center; gap:12px; border-radius:14px; padding:14px 14px 14px 17px; margin-bottom:9px;}
+  .rc-main{flex:1; min-width:0; text-align:left;}
+  .rc-name{display:block; font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .rc-where{display:block; font-size:11.5px; color:var(--muted); margin-top:3px;}
+  .rc-values{display:flex; gap:16px; margin-top:10px;}
+  .rc-values span{display:flex; flex-direction:column; font-size:10px; color:var(--muted); gap:2px;}
+  .rc-values b{font-family:'JetBrains Mono'; font-size:15px; color:var(--text); font-weight:700;}
+  .rc-add{flex:none; min-width:58px; height:48px; border-radius:13px; background:var(--cbg); color:var(--c);
+    font-family:'JetBrains Mono'; font-weight:700; font-size:15px; transition:transform .1s, background .15s;}
+  .rc-add:hover{background:var(--c); color:#0B0E12;}
+  .rc-add:active{transform:scale(.92);}
+  .group{margin-bottom:12px;}
+  .group-head{display:flex; align-items:center; gap:11px; width:100%; text-align:left; padding:13px 15px;
+    background:var(--surface-2); border-radius:13px; margin-bottom:9px;}
+  .group-name{font-weight:600; font-size:14.5px;}
+  .group-meta{margin-left:auto; font-size:11.5px; color:var(--muted);}
+  .group-arrow{display:flex; transition:transform .22s;}
+  .group-arrow svg{width:17px; height:17px; stroke:var(--muted); fill:none; stroke-width:2;}
+  .group-arrow.open{transform:rotate(180deg);}
+
+  /* ---- Materialdetail ---- */
+  .detail-stock{border-radius:18px; padding:18px;}
+  .ds-top{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;}
+  .ds-num{font-family:'JetBrains Mono'; font-weight:700; font-size:40px; line-height:1; color:var(--c);}
+  .ds-num small{font-size:18px; color:var(--muted); font-weight:400; margin-left:5px;}
+  .ds-track{position:relative; height:10px; border-radius:5px; background:rgba(255,255,255,.07); overflow:visible;}
+  .ds-fill{position:absolute; left:0; top:0; bottom:0; border-radius:5px; background:var(--c); transition:width .45s cubic-bezier(.2,.9,.3,1);}
+  .ds-mark{position:absolute; top:-4px; bottom:-4px; width:2px; background:rgba(255,255,255,.65); border-radius:1px;}
+  .ds-legend{display:flex; justify-content:space-between; margin-top:12px; font-size:11.5px; color:var(--muted);}
+  .ds-legend b{font-family:'JetBrains Mono'; color:var(--text); margin-left:5px;}
+
+  /* ---- Buchungs-Rückmeldung ---- */
+  @keyframes flashRow{0%{background:var(--accent-soft);} 100%{background:var(--surface);}}
+  .cable-row.flash, .refill-card.flash{animation:flashRow .7s ease;}
+
+  /* ---- Desktop-Cockpit ---- */
+  .cockpit{display:block;}
+  @media (min-width:980px){
+    .cockpit{display:grid; grid-template-columns:1.05fr 1.15fr .9fr; gap:24px; align-items:start;}
+    .cockpit .subhead:first-child{margin-top:0;}
+    .hero{margin-bottom:16px;}
+  }
+  @media (min-width:980px){
+    .refill-card{padding:16px 16px 16px 19px;}
+  }
+  .cable-row{border-radius:14px;}
+  .quick-btn{border-radius:14px;}
+  .stat-card{border-radius:14px;}
+  .empty-state{border:1px dashed var(--line-2);}
+  .filter-bar select{background:var(--surface); border-color:transparent;}
+  .search-input{border-color:transparent; background:var(--surface);}
+  .search-input:focus{border-color:var(--accent); background:var(--surface-2);}
+  .icon-btn{border-color:transparent; background:var(--surface);}
+  .btn-outline{border-color:transparent; background:var(--surface-2);}
+  .take-btn{border-color:transparent;}
+
 </style>
 </head>
 <body>
 <div id="app"></div>
-
+<div id="sheet-layer" aria-hidden="true">
+  <div class="backdrop" data-act="sheet-close"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+</div>
+<div id="print-area"></div>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
-import { getDatabase, ref, get, push, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+import { getDatabase, ref, get, set, update, remove, push, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app-check.js";
 
 (function(){
   "use strict";
 
-  /* ---------------- Firebase / storage ---------------- */
-  // Firebase-Konfiguration für planning-with-ai-9d831.
-  // Der API-Key wird beim GitHub-Pages-Deploy aus einem GitHub Secret eingesetzt.
-  // Dadurch liegt er nicht als Klartext im Repository. Im Browser bleibt ein
-  // Firebase-Web-API-Key technisch sichtbar; geschützt wird die Datenbank über
-  // Authentication, Security Rules und optional App Check.
+  /* ================================================================
+     Firebase
+     ================================================================ */
   const firebaseConfig = {
     apiKey: "AIzaSyCouo8Fuuv4stEuxgKcLTFt-svCe5gXON4",
     authDomain: "planning-with-ai-9d831.firebaseapp.com",
@@ -172,112 +572,55 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gst
     appId: "1:934985638005:web:fd330a5ca3eb335580983c"
   };
 
-  // Optional: reCAPTCHA-Enterprise-Site-Key für Firebase App Check.
-  // Wird ebenfalls beim Deploy eingesetzt. Bleibt der Wert leer, startet die
-  // Webseite ohne App Check. App-Check-Enforcement erst aktivieren, nachdem
-  // dieser Key eingerichtet und erfolgreich getestet wurde.
-  const APP_CHECK_SITE_KEY = "AIzaSyCouo8Fuuv4stEuxgKcLTFt-svCe5gXON4";
-
+  const APP_VERSION = "3.5";
   const DB_ROOT = "materiallager";
-  const LOCAL_PREFIX = "materiallager:device:v2:";
-  let firebaseApp = null;
-  let db = null;
-  let auth = null;
-  let appCheck = null;
-  let movementsUnsubscribe = null;
-  let connectionUnsubscribe = null;
+  const PROBE_ID = "_pruefung";
+  const LOCAL_PREFIX = "materiallager:device:v3:";
+  let firebaseApp = null, db = null, auth = null;
 
   function firebaseConfigured(){
     return firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("HIER_") &&
-           !firebaseConfig.apiKey.startsWith("__FIREBASE_") &&
-           firebaseConfig.projectId && !firebaseConfig.projectId.startsWith("HIER_") &&
            firebaseConfig.databaseURL && !firebaseConfig.databaseURL.includes("HIER_PROJECT_ID");
   }
-
-  function appCheckConfigured(){
-    return APP_CHECK_SITE_KEY && !APP_CHECK_SITE_KEY.startsWith("__FIREBASE_");
-  }
-
-  function friendlyFirebaseError(error){
-    const code = String((error && error.code) || "").toLowerCase();
-    const message = String((error && error.message) || error || "Unbekannter Firebase-Fehler");
-
-    if(code.includes("api-key-not-valid") || message.toLowerCase().includes("api key not valid")){
-      return "Der Firebase API-Key ist ungültig oder wurde blockiert. Bitte einen gültigen Firebase Web API-Key in GitHub Secrets hinterlegen.";
-    }
-    if(code.includes("operation-not-allowed") || message.toLowerCase().includes("operation-not-allowed")){
-      return "Die anonyme Anmeldung ist in Firebase Authentication nicht aktiviert.";
-    }
-    if(code.includes("network-request-failed")){
-      return "Firebase ist momentan nicht erreichbar. Bitte Internetverbindung prüfen.";
-    }
-    if(code.includes("permission-denied") || message.toLowerCase().includes("permission_denied")){
-      return "Firebase hat den Zugriff abgelehnt. Bitte die Realtime-Database-Regeln prüfen.";
-    }
-    if(message.includes("API_KEY_SERVICE_BLOCKED") || message.includes("403")){
-      return "Der API-Key ist für einen benötigten Firebase-Dienst gesperrt. Bitte die API-Einschränkungen des Browser-Keys prüfen.";
-    }
-    return message;
-  }
-
   function localGet(key){
-    try{
-      const raw = localStorage.getItem(LOCAL_PREFIX + key);
-      return raw === null ? null : JSON.parse(raw);
-    }catch(e){ console.error("localStorage.get failed", key, e); return null; }
+    try{ const raw = localStorage.getItem(LOCAL_PREFIX + key); return raw===null ? null : JSON.parse(raw); }
+    catch(e){ return null; }
   }
   function localSet(key, value){
-    try{ localStorage.setItem(LOCAL_PREFIX + key, JSON.stringify(value)); return true; }
-    catch(e){ console.error("localStorage.set failed", key, e); return false; }
+    try{ localStorage.setItem(LOCAL_PREFIX + key, JSON.stringify(value)); return true; }catch(e){ return false; }
   }
 
-  async function initFirebase(){
-    if(!firebaseConfigured()) return false;
-    firebaseApp = initializeApp(firebaseConfig);
-
-    // App Check muss vor dem Zugriff auf Firebase-Dienste initialisiert werden.
-    // Ohne eingerichteten Site-Key wird es bewusst übersprungen.
-    if(appCheckConfigured()){
-      appCheck = initializeAppCheck(firebaseApp, {
-        provider: new ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY),
-        isTokenAutoRefreshEnabled: true
-      });
-      state.appCheckReady = true;
-    }
-
-    db = getDatabase(firebaseApp);
-    auth = getAuth(firebaseApp);
-
-    // Jedes Gerät meldet sich anonym an. Die UID wird bei jeder Buchung
-    // mitgespeichert und von den Datenbankregeln geprüft.
-    const credential = await signInAnonymously(auth);
-    state.firebaseUid = credential.user.uid;
-    state.firebaseReady = true;
-
-    // Echter Live-Listener: Wird aufgerufen, sobald irgendein Gerät eine
-    // Entnahme/Rückgabe speichert oder der Verlauf zurückgesetzt wird.
-    const movementsRef = ref(db, DB_ROOT + "/movements");
-    movementsUnsubscribe = onValue(movementsRef, (snapshot)=>{
-      const raw = snapshot.val() || {};
-      state.movKeyCache = raw;
-      state.movements = Object.entries(raw).map(([id, value])=>({ id, ...value }))
-        .sort((a,b)=> (b.serverTs || b.ts || 0) - (a.serverTs || a.ts || 0));
-      if(state.ready) render();
-    }, (error)=>{
-      console.error("Firebase movements listener failed", error);
-      state.firebaseError = friendlyFirebaseError(error);
-      if(state.ready) render();
-    });
-
-    // Verbindung zur Realtime Database anzeigen.
-    connectionUnsubscribe = onValue(ref(db, ".info/connected"), (snapshot)=>{
-      state.online = snapshot.val() === true;
-      if(state.ready) render();
-    });
-    return true;
+  /* ================================================================
+     Hilfsfunktionen
+     ================================================================ */
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function h(strings, ...vals){ return strings.reduce((a,s,i)=> a + s + (vals[i]!==undefined?vals[i]:""), ""); }
+  function newId(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+  function toInt(v, d){ const n = parseInt(String(v==null?"":v).replace(/[^\d-]/g,""),10); return Number.isFinite(n) ? n : d; }
+  function toArr(obj){ return Object.entries(obj||{}).map(([id,v])=> Object.assign({id}, v)); }
+  function bySort(a,b){ return (a.sort??999) - (b.sort??999) || String(a.name).localeCompare(String(b.name),"de"); }
+  /* usb-c, usbc und "usb c" sollen dasselbe finden, ebenso 5m und "5 m". */
+  function normalize(v){
+    return String(v==null?"":v).toLowerCase()
+      .replace(/[äàâ]/g,"a").replace(/[öô]/g,"o").replace(/[üû]/g,"u").replace(/ß/g,"ss")
+      .replace(/[^a-z0-9]+/g,"");
   }
-
-  /* ---------------- real inventory data ---------------- */
+  function relTime(ts){
+    if(!ts) return "";
+    const s = Math.round((Date.now()-ts)/1000);
+    if(s < 60) return "gerade eben";
+    if(s < 3600) return "vor " + Math.floor(s/60) + " Min.";
+    if(s < 86400) return "vor " + Math.floor(s/3600) + " Std.";
+    return new Date(ts).toLocaleDateString("de-CH");
+  }
+  function loadScript(src){
+    return new Promise((res,rej)=>{
+      if([...document.scripts].some(s=>s.src===src)) return res();
+      const el = document.createElement("script");
+      el.src = src; el.async = true; el.onload = res; el.onerror = ()=>rej(new Error("nicht ladbar"));
+      document.head.appendChild(el);
+    });
+  }
   const BOX_DEFS = [
     { id:"k01", name:"Kiste 1", description:"HDMI Flex & Normal", groups:[
       {category:"HDMI Flex", items:[["1m",3],["2m",6],["3m",2],["5m",1],["7.5m",2]]},
@@ -377,345 +720,783 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gst
     ]}
   ];
 
-  function defaultMinStock(qty){
-    if(qty<=2) return 1;
-    if(qty<=5) return 2;
-    if(qty<=9) return 3;
-    if(qty<=19) return 4;
+  /* Vorschlag für den Mindestbestand, abgeleitet vom Sollbestand.
+     Nur ein Vorschlag – der Benutzer kann ihn jederzeit überschreiben. */
+  function suggestMin(target){
+    const t = toInt(target,1);
+    if(t <= 1) return 1;
+    if(t === 2) return 2;
+    if(t <= 4) return 2;
+    if(t <= 8) return 3;
+    if(t <= 15) return 4;
     return 5;
   }
 
-  let _built = null;
-  function buildBoxesAndCables(){
-    const boxes = []; const cables = []; let counter = 1;
+  /* Aus den obigen Definitionen wird einmalig der Katalog in Firebase
+     erzeugt. Die Artikel-IDs (c001, c002 …) bleiben dabei exakt gleich,
+     damit alle bisherigen Bewegungen weiterhin passen. */
+  function buildSeed(){
+    const boxes = {}, items = {}; let counter = 1;
     const pad = n => String(n).padStart(3,"0");
-    BOX_DEFS.forEach(b=>{
-      boxes.push({id:b.id, name:b.name, description:b.description});
+    BOX_DEFS.forEach((b,bi)=>{
+      boxes[b.id] = { name:b.name, description:b.description, sort:bi };
       b.groups.forEach(g=>{
         g.items.forEach(([label, qty])=>{
-          cables.push({
-            id: "c"+pad(counter++), name: label, category: g.category, boxId: b.id,
-            initialStock: qty, minStock: defaultMinStock(qty)
-          });
+          const id = "c"+pad(counter++);
+          items[id] = { name:label, category:g.category, boxId:b.id, initialStock:qty, minStock:suggestMin(qty), targetStock:qty, unit:"Stk.", sort:counter };
         });
       });
     });
-    return {boxes, cables};
+    return { boxes, items };
   }
-  function getBuilt(){ if(!_built) _built = buildBoxesAndCables(); return _built; }
-  function demoBoxes(){ return getBuilt().boxes.map(b=>Object.assign({},b)); }
-  function demoCables(){ return getBuilt().cables.map(c=>Object.assign({},c)); }
-  function demoMovements(){ return []; } // frisches Lager: keine erfundene Historie
 
-  /* ---------------- state ---------------- */
+  /* ================================================================
+     Zustand
+     ================================================================ */
   const state = {
-    boxes: [], cables: [], movements: [], movKeyCache: {},
-    user: "", view: "dashboard", activeBoxId: null, activeCableId: null,
+    boxes: [], items: [], movements: [], outbox: [],
+    user: "", view: "dashboard", activeBoxId: null, activeItemId: null,
     search: "", filters: { box:"", category:"", user:"" }, selection: {},
-    ready: false, firebaseReady: false, online: false, firebaseError: "",
-    firebaseUid: "", appCheckReady: false
+    labelSel: {},
+    ready: false, firebaseReady: false, online: false, error: "",
+    catalogFromCache: true,
+    authOk: false, authError: "", errorCode: "", sendError: "", diag: null, diagRunning: false,
+    connKnown: false, catalogDenied: false, flash: null, groupOpen: {}, refillGroup: false, boxCat: ""
   };
 
-  function allCategories(){ return Array.from(new Set(state.cables.map(c=>c.category))).sort((a,b)=>a.localeCompare(b,'de')); }
+  const boxById  = id => state.boxes.find(b=>b.id===id);
+  const itemById = id => state.items.find(i=>i.id===id);
+  const itemsOfBox = boxId => state.items.filter(i=>i.boxId===boxId).sort(bySort);
+  function allCategories(){ return Array.from(new Set(state.items.map(i=>i.category))).sort((a,b)=>a.localeCompare(b,"de")); }
+  function categoriesOfBox(boxId){ return Array.from(new Set(itemsOfBox(boxId).map(i=>i.category))); }
+
+  /* ---------- Bestand: Startbestand + alle Bewegungen ---------- */
+  function movementDelta(m){
+    const q = Math.abs(toInt(m.qty,0));
+    if(m.type === "entnahme") return -q;
+    if(m.type === "korrektur") return toInt(m.qty,0);   // darf negativ sein
+    return q;                                            // rueckgabe / auffuellung
+  }
+  function effectiveMovements(){
+    const real = state.movements.filter(m => m.cableId !== PROBE_ID);
+    const pending = state.outbox
+      .filter(m => !state.movements.some(x => sameMove(x, m)))
+      .map(m => Object.assign({pending:true}, m));
+    return pending.concat(real);
+  }
+  let _deltaCache = null;
+  function deltaMap(){
+    if(_deltaCache) return _deltaCache;
+    const map = Object.create(null);
+    effectiveMovements().forEach(m=>{
+      if(!m.cableId) return;
+      map[m.cableId] = (map[m.cableId]||0) + movementDelta(m);
+    });
+    return (_deltaCache = map);
+  }
+  function invalidate(){ _deltaCache = null; }
+  function currentStock(itemId){
+    const it = itemById(itemId);
+    if(!it) return 0;
+    return toInt(it.initialStock,0) + (deltaMap()[itemId] || 0);
+  }
+  /* ----------------------------------------------------------------
+     Drei Werte pro Material, klar getrennt:
+       stock   – was jetzt im Fahrzeug liegt
+       min     – ab wann gewarnt wird
+       target  – wie viel im vollen Fahrzeug liegen soll
+     Bewertet wird immer relativ, nie an der absoluten Stückzahl.
+     ---------------------------------------------------------------- */
+  function minOf(it){ return Math.max(1, toInt(it.minStock, 1)); }
+  function targetOf(it){
+    const t = toInt(it.targetStock, 0);
+    if(t > 0) return t;
+    return Math.max(toInt(it.initialStock, 0), minOf(it));
+  }
+  function statusOf(it){
+    const stock = currentStock(it.id);
+    const min = minOf(it), target = Math.max(targetOf(it), min);
+    const level = stock <= 0 ? "crit" : (stock < min ? "warn" : "ok");
+    return { stock, min, target, level, need: Math.max(0, target - stock),
+             label: level==="ok" ? (stock>=target ? "Vollständig" : "In Ordnung")
+                  : (level==="warn" ? "Kritisch" : "Leer") };
+  }
+  function isLow(it){ const st = statusOf(it); return st.level !== "ok"; }
+  function stockStatus(it){ return statusOf(it); }   // Kompatibilität
+
+  function lowItems(){
+    return state.items
+      .map(i => Object.assign({item:i}, statusOf(i)))
+      .filter(x => x.level !== "ok")
+      .sort((a,b) => {
+        if(a.level !== b.level) return a.level === "crit" ? -1 : 1;
+        const da = a.min > 0 ? a.stock/a.min : 1, db = b.min > 0 ? b.stock/b.min : 1;
+        return da - db || b.need - a.need;
+      });
+  }
+  function readiness(){
+    const total = state.items.length;
+    if(!total) return {pct:100, ok:0, warn:0, crit:0, total:0, need:0};
+    let ok=0, warn=0, crit=0, need=0;
+    state.items.forEach(i=>{
+      const st = statusOf(i);
+      if(st.level==="ok") ok++; else if(st.level==="warn") warn++; else crit++;
+      need += st.need;
+    });
+    return {pct: Math.round(ok/total*100), ok, warn, crit, total, need};
+  }
+
+  /* ================================================================
+     Firebase-Anbindung
+     ================================================================ */
+  async function initFirebase(){
+    firebaseApp = initializeApp(firebaseConfig);
+    db = getDatabase(firebaseApp);
+    auth = getAuth(firebaseApp);
+
+    // Anmeldung darf scheitern, ohne dass die ganze App stehen bleibt.
+    try{
+      await signInAnonymously(auth);
+      state.authOk = true; state.authError = "";
+    }catch(e){
+      state.authOk = false;
+      state.authError = e.code || e.message || String(e);
+      console.warn("Anmeldung fehlgeschlagen", e);
+    }
+    state.firebaseReady = true;
+
+    onValue(ref(db, ".info/connected"), snap=>{
+      state.online = snap.val() === true;
+      state.connKnown = true;
+      if(state.online) flushOutbox();
+      if(state.ready) render();
+    });
+
+    try{
+      await ensureCatalog();
+    }catch(e){
+      onCatalogError(e);
+    }
+
+    onValue(ref(db, DB_ROOT + "/catalog/boxes"), snap=>{
+      const val = snap.val();
+      if(val){ state.boxes = toArr(val).sort(bySort); state.catalogFromCache = false; state.catalogDenied = false; cacheCatalog(); }
+      if(state.ready) render();
+    }, onCatalogError);
+
+    onValue(ref(db, DB_ROOT + "/catalog/items"), snap=>{
+      const val = snap.val();
+      if(val){ state.items = toArr(val); state.catalogFromCache = false; state.catalogDenied = false; cacheCatalog(); }
+      if(state.ready) render();
+    }, onCatalogError);
+
+    onValue(ref(db, DB_ROOT + "/movements"), snap=>{
+      const raw = snap.val() || {};
+      state.movements = Object.entries(raw).map(([id,v])=> Object.assign({id}, v))
+        .sort((a,b)=> (b.serverTs||b.ts||0) - (a.serverTs||a.ts||0));
+      invalidate();
+      localSet("cache:movements", state.movements.slice(0,600));
+      if(state.ready) render();
+    }, onDbError);
+  }
+  /* Der Katalog liegt auf einem neuen Pfad. Sperren ihn die Regeln, arbeitet die
+     App mit der eingebauten Liste weiter – Buchen bleibt davon unberührt. */
+  function onCatalogError(error){
+    console.warn("Katalog nicht verfügbar", error);
+    state.catalogDenied = true;
+    if(state.ready) render();
+  }
+  function onDbError(error){
+    console.error("Firebase", error);
+    state.error = error.message || String(error);
+    state.errorCode = error.code || (/permission_denied/i.test(state.error) ? "PERMISSION_DENIED" : "");
+    if(state.ready) render();
+  }
+
+  /* Firebase-Codes in verständliche Sätze übersetzen */
+  function fbHint(code, msg){
+    const c = String(code || "").toLowerCase() + " " + String(msg || "").toLowerCase();
+    if(c.indexOf("permission_denied") >= 0 || c.indexOf("permission-denied") >= 0)
+      return "Die Regeln der Datenbank lassen keinen Zugriff zu. Wichtig: Die Regeln müssen bei Build → Realtime Database → Reiter Regeln stehen, nicht bei Firestore Database. Dort den kompletten Inhalt ersetzen und auf Veröffentlichen klicken. Die passenden Regeln stehen unten zum Kopieren bereit.";
+    if(c.indexOf("operation-not-allowed") >= 0 || c.indexOf("configuration-not-found") >= 0)
+      return "Die anonyme Anmeldung ist nicht eingeschaltet. Firebase-Konsole → Build → Authentication → Sign-in method → Anonym → aktivieren.";
+    if(c.indexOf("api-key") >= 0 || c.indexOf("invalid-api-key") >= 0)
+      return "Der Firebase-Schlüssel stimmt nicht oder ist für diese Adresse gesperrt. In der Google-Cloud-Konsole unter APIs & Dienste → Anmeldedaten die Einschränkung des Web-API-Schlüssels prüfen.";
+    if(c.indexOf("network") >= 0 || c.indexOf("unavailable") >= 0)
+      return "Keine Verbindung zum Server. Internet prüfen – Entnahmen werden solange auf dem Gerät gesammelt.";
+    if(c.indexOf("unauthorized-domain") >= 0)
+      return "Diese Adresse ist in Firebase nicht freigegeben. Authentication → Settings → Autorisierte Domains → Domain hinzufügen.";
+    return "";
+  }
+
+  async function ensureCatalog(){
+    const snap = await get(ref(db, DB_ROOT + "/catalog/boxes"));
+    const val = snap.val();
+    if(val && Object.keys(val).length) return false;
+    await set(ref(db, DB_ROOT + "/catalog"), Object.assign(buildSeed(), {seededAt: Date.now()}));
+    return true;
+  }
+  function cacheCatalog(){ localSet("cache:catalog", {boxes: state.boxes, items: state.items}); }
+
+  function loadFromCache(){
+    const cached = localGet("cache:catalog");
+    if(cached && cached.boxes && cached.boxes.length){
+      state.boxes = cached.boxes; state.items = cached.items || [];
+    }else{
+      const seed = buildSeed();
+      state.boxes = toArr(seed.boxes).sort(bySort);
+      state.items = toArr(seed.items);
+    }
+    state.movements = localGet("cache:movements") || [];
+    state.outbox = localGet("outbox") || [];
+    invalidate();
+  }
+
+  /* ================================================================
+     Buchungen — mit Warteschlange für Funklöcher
+     ================================================================ */
+  let flushing = false;
+  function saveOutbox(){ localSet("outbox", state.outbox); }
+  function dropSentOutbox(){
+    const before = state.outbox.length;
+    state.outbox = state.outbox.filter(m => !state.movements.some(x => sameMove(x, m)));
+    if(state.outbox.length !== before){ saveOutbox(); invalidate(); }
+  }
+  /* Genau das Format, das die Datenbank seit jeher kennt – acht Felder,
+     zwei Buchungsarten. Alles Weitere wird aus dem Katalog hergeleitet. */
+  function wireFormat(m){
+    return {
+      cableId: m.cableId,
+      type: m.type,
+      qty: m.qty,
+      user: m.user || "",
+      date: m.date,
+      time: m.time,
+      ts: m.ts,
+      serverTs: serverTimestamp()
+    };
+  }
+  function sameMove(a, b){
+    return a && b && a.cableId === b.cableId && a.ts === b.ts && a.qty === b.qty && a.type === b.type;
+  }
+  function bookMovement(itemId, type, qty){
+    const it = itemById(itemId); if(!it) return;
+    const now = new Date();
+    const val = {
+      cableId: itemId,
+      type: (type === "entnahme") ? "entnahme" : "rueckgabe",
+      qty: Math.abs(toInt(qty,0)),
+      user: state.user || "",
+      date: now.toLocaleDateString("de-CH"),
+      time: now.toLocaleTimeString("de-CH", {hour:"2-digit", minute:"2-digit"}),
+      ts: Date.now()
+    };
+    state.outbox.push(val);
+    saveOutbox(); invalidate();
+    flushOutbox();
+    return val;
+  }
+  async function flushOutbox(){
+    if(flushing || !db || !state.firebaseReady || !state.outbox.length) return;
+    flushing = true;
+    try{
+      while(state.outbox.length){
+        const m = state.outbox[0];
+        // Nach einem Neustart könnte die Buchung bereits drüben sein.
+        if(state.movements.some(x => sameMove(x, m))){
+          state.outbox.shift(); saveOutbox(); invalidate(); continue;
+        }
+        await push(ref(db, DB_ROOT + "/movements"), wireFormat(m));
+        // Erst jetzt – nach der Bestätigung vom Server – aus der Warteschlange nehmen.
+        state.outbox = state.outbox.filter(x => !sameMove(x, m));
+        state.sendError = "";
+        saveOutbox(); invalidate();
+      }
+    }catch(e){
+      const code = e.code || e.message || String(e);
+      state.sendError = code;
+      state.errorCode = code;
+      console.warn("Buchung abgelehnt", e);
+      toast("Buchung nicht gespeichert: " + code, "bad");
+    }finally{
+      flushing = false;
+      if(state.ready) render();
+    }
+  }
+  async function undoMovement(mv){
+    // Wartende Buchung: einfach aus der Warteschlange nehmen.
+    if(state.outbox.some(m => sameMove(m, mv))){
+      state.outbox = state.outbox.filter(m => !sameMove(m, mv));
+      saveOutbox(); invalidate(); render();
+      return;
+    }
+    const rec = state.movements.find(m => sameMove(m, mv)) || state.movements.find(m=>m.id===mv.id);
+    if(rec && rec.id && db && state.firebaseReady){
+      await remove(ref(db, DB_ROOT + "/movements/" + rec.id));
+    }
+  }
+
+  /* ================================================================
+     Katalog bearbeiten (Kisten und Material)
+     ================================================================ */
+  function requireLive(){
+    if(!db || !state.firebaseReady){
+      toast("Dafür braucht es eine Verbindung. Entnahmen gehen auch offline.", "bad");
+      return false;
+    }
+    if(state.catalogDenied){
+      toast("Die Datenbankregeln geben den Katalog noch nicht frei – Einstellungen → Verbindung prüfen.", "bad");
+      return false;
+    }
+    return true;
+  }
+  async function saveItem(boxId, itemId, data){
+    if(!requireLive()) return;
+    if(itemId){
+      await update(ref(db, DB_ROOT + "/catalog/items/" + itemId), data);
+    }else{
+      const id = newId("x");
+      const maxSort = Math.max(0, ...itemsOfBox(boxId).map(i=>toInt(i.sort,0)));
+      await set(ref(db, DB_ROOT + "/catalog/items/" + id), Object.assign({boxId, sort:maxSort+1, unit:"Stk.", createdAt:Date.now()}, data));
+      return id;
+    }
+  }
+  async function deleteItem(itemId){
+    if(!requireLive()) return;
+    await remove(ref(db, DB_ROOT + "/catalog/items/" + itemId));
+  }
+  async function saveBox(boxId, data, isNew){
+    if(!requireLive()) return;
+    if(isNew){
+      const maxSort = Math.max(0, ...state.boxes.map(b=>toInt(b.sort,0)));
+      await set(ref(db, DB_ROOT + "/catalog/boxes/" + boxId), Object.assign({sort:maxSort+1, createdAt:Date.now()}, data));
+      return boxId;
+    }
+    await update(ref(db, DB_ROOT + "/catalog/boxes/" + boxId), data);
+    return boxId;
+  }
+  async function deleteBox(boxId){
+    if(!requireLive()) return;
+    const updates = {};
+    itemsOfBox(boxId).forEach(i=>{ updates["catalog/items/" + i.id] = null; });
+    updates["catalog/boxes/" + boxId] = null;
+    await update(ref(db, DB_ROOT), updates);
+  }
+
+  /* ================================================================
+     Symbole
+     ================================================================ */
+  const ICONS = {
+    home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>',
+    box:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>',
+    cable:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a4 4 0 004 4h8a4 4 0 014 4"/><circle cx="4" cy="8" r="2"/><circle cx="20" cy="16" r="2"/></svg>',
+    list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+    qr:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20v.01"/></svg>',
+    scan:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"/><path d="M4 12h16"/></svg>',
+    back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+    settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>',
+    undo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>',
+    plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>',
+    print:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v7H8z"/></svg>',
+    edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>',
+    bolt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6l-1 7h4l-8 13 2-9H8z"/></svg>',
+    search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+    check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
+    clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    alert:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 17v.01"/><circle cx="12" cy="12" r="9"/></svg>',
+    chevron:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
+    inbox:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5 5h14l2 8v6H3v-6z"/></svg>'
+  };
 
   const CHIP_PALETTE = [
     {bg:"#E7E7E8", fg:"#2B2E33"}, {bg:"#E5EAFB", fg:"#3457C7"}, {bg:"#E1F4E9", fg:"#2E9C5A"},
     {bg:"#FBECDD", fg:"#C9670F"}, {bg:"#F3E6F7", fg:"#8A3FA0"}, {bg:"#FDEAEA", fg:"#B23A28"},
     {bg:"#E6F6F6", fg:"#1E7F7F"}, {bg:"#F7F0DD", fg:"#9C7A1E"}
   ];
-  function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return Math.abs(h); }
-  function chipStyle(cat){ const p = CHIP_PALETTE[hashStr(cat) % CHIP_PALETTE.length]; return "background:"+p.bg+";color:"+p.fg+";"; }
-
-  /* ---------------- data loading & live sync ---------------- */
-  function loadBoxesAndCables(){
-    // Kisten/Materialdefinitionen sind Bestandteil dieser HTML-Datei.
-    // Der veränderliche Bestand ergibt sich aus den zentralen Firebase-Bewegungen.
-    state.boxes = demoBoxes();
-    state.cables = demoCables();
-  }
-
-  async function syncMovements(){
-    if(!db || !state.firebaseReady) return;
-    const snapshot = await get(ref(db, DB_ROOT + "/movements"));
-    const raw = snapshot.val() || {};
-    state.movKeyCache = raw;
-    state.movements = Object.entries(raw).map(([id, value])=>({ id, ...value }))
-      .sort((a,b)=> (b.serverTs || b.ts || 0) - (a.serverTs || a.ts || 0));
-  }
-
-  function currentStock(cableId){
-    const cable = state.cables.find(c=>c.id===cableId);
-    if(!cable) return 0;
-    let stock = cable.initialStock;
-    for(const m of state.movements){
-      if(m.cableId !== cableId) continue;
-      stock += (m.type === "entnahme" ? -m.qty : m.qty);
-    }
-    return stock;
-  }
-  function stockStatus(cable){
-    const s = currentStock(cable.id);
-    if(s <= 0) return {level:"danger", label:"Nicht mehr vorhanden", stock:s};
-    if(s <= cable.minStock) return {level:"warn", label:"Niedriger Bestand", stock:s};
-    return {level:"ok", label:"Auf Lager", stock:s};
-  }
-  function boxCableCount(boxId){ return state.cables.filter(c=>c.boxId===boxId).length; }
-
-  async function recordMovement(cableId, type, qty, user){
-    if(!db || !state.firebaseReady || !state.firebaseUid) throw new Error("Firebase ist nicht verbunden.");
-
-    const cleanUser = String(user || "").trim();
-    if(cleanUser.length < 2) throw new Error("Bitte zuerst unter Einstellungen deinen Namen eintragen.");
-    if(cleanUser.length > 80) throw new Error("Der eingetragene Name ist zu lang.");
-    if(type !== "entnahme" && type !== "rueckgabe") throw new Error("Ungültiger Buchungstyp.");
-    if(!Number.isInteger(qty) || qty < 1 || qty > 100) throw new Error("Ungültige Menge.");
-
-    const cable = state.cables.find(c=>c.id===cableId);
-    if(!cable) throw new Error("Das ausgewählte Material wurde nicht gefunden.");
-    if(type === "entnahme" && qty > currentStock(cableId)) throw new Error("Die gewünschte Menge ist nicht mehr verfügbar.");
-
-    const now = new Date();
-    const val = {
-      cableId,
-      type,
-      qty,
-      user: cleanUser,
-      uid: state.firebaseUid,
-      date: now.toLocaleDateString("de-CH"),
-      time: now.toLocaleTimeString("de-CH", {hour:"2-digit", minute:"2-digit"}),
-      ts: Date.now(),
-      serverTs: serverTimestamp()
-    };
-    await push(ref(db, DB_ROOT + "/movements"), val);
-    // Kein manuelles state-Update nötig: der onValue-Live-Listener liefert
-    // die Änderung automatisch an alle geöffneten Geräte.
-  }
-
-  const ICONS = {
-    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>',
-    box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>',
-    cable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a4 4 0 004 4h8a4 4 0 014 4"/><circle cx="4" cy="8" r="2"/><circle cx="20" cy="16" r="2"/></svg>',
-    list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>',
-    qr: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20v.01"/></svg>',
-    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
-    settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>',
-    undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>'
-  };
+  function hashStr(s){ let x=0; for(let i=0;i<s.length;i++){ x=(x*31+s.charCodeAt(i))|0; } return Math.abs(x); }
+  function chipStyle(cat){ const p = CHIP_PALETTE[hashStr(String(cat)) % CHIP_PALETTE.length]; return "background:"+p.bg+";color:"+p.fg+";"; }
 
   const app = document.getElementById("app");
-  function h(strings, ...vals){ return strings.reduce((a,s,i)=> a + s + (vals[i]!==undefined?vals[i]:""), ""); }
-  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+  /* ================================================================
+     Bausteine
+     ================================================================ */
+  function emptyState(icon, title, text){
+    const svg = ICONS[icon] || ICONS.inbox;
+    return h`<div class="empty-state"><div class="glyph">${svg}</div><strong>${esc(title)}</strong><p>${esc(text||"")}</p></div>`;
+  }
+  /* Pegelanzeige wie an einem Aussteuerungsmesser: die Segmente stehen
+     für den Sollbestand, die Markierung für den Mindestbestand. */
+  function meter(st, segsMax){
+    const segs = Math.min(segsMax || 6, Math.max(2, st.target));
+    const gefuellt = st.target > 0 ? Math.round(st.stock / st.target * segs) : 0;
+    const on = st.stock > 0 ? Math.max(1, Math.min(segs, gefuellt)) : 0;
+    const minSeg = st.target > 0 ? Math.max(1, Math.round(st.min / st.target * segs)) : 0;
+    let bars = "";
+    for(let i=0;i<segs;i++){
+      const cls = (i < on ? "on" : "") + (i + 1 === minSeg ? " mark" : "");
+      bars += `<i class="${cls}"></i>`;
+    }
+    return `<span class="level lv-${st.level}">${bars}</span>`;
+  }
+  function badge(st, it){
+    const s2 = it ? statusOf(it) : st;
+    return `<span class="stock-badge lv-${s2.level}">
+      <span class="stock-num">${s2.stock}<span>/ ${s2.target}</span></span>
+      ${meter(s2)}
+    </span>`;
+  }
+  function statusDot(level){ return `<span class="dot lv-${level}"></span>`; }
+  function itemRow(it, opts){
+    opts = opts || {};
+    const st = statusOf(it);
+    const box = boxById(it.boxId);
+    const picked = !!state.selection[it.id];
+    const flash = state.flash === it.id ? " flash" : "";
+    return h`
+      <div class="cable-row lv-${st.level}${picked?" picked":""}${flash}">
+        <div class="row-main">
+          ${opts.pick ? `<input type="checkbox" class="pick-box" data-pick="${it.id}" ${picked?"checked":""} ${st.stock<=0?"disabled":""} aria-label="${esc(it.name)} auswählen">` : ""}
+          <button class="grow" data-act="open-item" data-id="${it.id}">
+            <p class="cable-name">${esc(it.name)}</p>
+            <span class="cable-sub">
+              <span class="chip">${esc(it.category)}</span>
+              ${opts.showBox && box ? `<span class="where">${esc(String(box.id).toUpperCase())}</span>` : ""}
+              ${st.level!=="ok" ? `<span class="tag lv-${st.level}">${st.level==="crit"?"Leer":"Kritisch"} · +${st.need}</span>` : ""}
+            </span>
+          </button>
+          ${badge(st, it)}
+          ${opts.take ? `<button class="take-btn" data-act="take-one" data-id="${it.id}" ${st.stock<=0?"disabled":""} aria-label="Ein Stück entnehmen">−1</button>` : ""}
+        </div>
+        ${picked ? h`
+          <div class="qty-line">
+            <span class="field-label" style="margin:0;">Menge</span>
+            <button class="btn btn-outline btn-sm" data-act="sel-minus" data-id="${it.id}">−</button>
+            <input type="number" min="1" max="${st.stock}" class="qty-input" data-qty="${it.id}" value="${Math.min(state.selection[it.id]||1, st.stock||1)}">
+            <button class="btn btn-outline btn-sm" data-act="sel-plus" data-id="${it.id}">+</button>
+            <span class="where">von ${st.stock}</span>
+          </div>` : ""}
+      </div>`;
+  }
+  function movementRow(m){
+    const isOut = m.type === "entnahme";
+    const isFix = m.type === "korrektur";
+    const name = m.name || (itemById(m.cableId)||{}).name || "Unbekanntes Material";
+    const boxName = m.boxName || (boxById((itemById(m.cableId)||{}).boxId)||{}).name || "–";
+    const delta = movementDelta(m);
+    return h`
+      <div class="movement-row">
+        <div class="mv-icon ${isFix?"mv-fix":(isOut?"mv-out":"mv-in")}">${isFix?"±":(isOut?"−":"+")}</div>
+        <div class="mv-main">
+          <div class="mv-title">${esc(name)}${m.pending?'<span class="pending-pill">wartet</span>':""}</div>
+          <div class="mv-meta">${esc(boxName)} · ${esc(m.date||"")} ${esc(m.time||"")}${m.user?" · "+esc(m.user):""}</div>
+        </div>
+        <div class="mv-qty" style="color:${delta<0?"var(--danger)":(isFix?"var(--muted)":"var(--ok)")}">${delta>0?"+":""}${delta}</div>
+      </div>`;
+  }
+
+  /* ================================================================
+     Ansichten
+     ================================================================ */
+  function topbar(){
+    const showSearch = ["boxes","cables","movements","boxDetail"].includes(state.view);
+    return h`
+      <div class="topbar">
+        <div class="topbar-row">
+          <div class="brand">
+            <div class="brand-mark">M</div>
+            <div><h1>Materiallager</h1><small>Servicefahrzeug</small></div>
+          </div>
+          ${livePill()}
+          <button class="icon-btn" data-nav="settings" aria-label="Einstellungen">${ICONS.settings}</button>
+        </div>
+        ${showSearch ? h`<div class="search-row">
+          <svg class="s-ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input class="search-input" id="globalSearch" placeholder="Suchen: hdmi 5, usb-c, K01 …" value="${esc(state.search)}">
+        </div>` : ""}
+      </div>`;
+  }
 
   function nav(){
     const tabs = [
       {id:"dashboard", label:"Start", icon:ICONS.home},
       {id:"boxes", label:"Kisten", icon:ICONS.box},
       {id:"cables", label:"Material", icon:ICONS.cable},
-      {id:"movements", label:"Entnahmen", icon:ICONS.list}
+      {id:"movements", label:"Verlauf", icon:ICONS.list}
     ];
-    const top = ["boxDetail","cableDetail"].includes(state.view) ? tabIdForSubview() : state.view;
+    const top = state.view==="boxDetail" ? "boxes" : (state.view==="itemDetail" ? "cables" : state.view);
+    const btn = t => `<button class="nav-btn ${top===t.id?"active":""}" data-nav="${t.id}">${t.icon}<span>${t.label}</span></button>`;
     return h`
       <div class="bottom-nav">
-        ${tabs.map(t=>`
-          <button class="nav-btn ${top===t.id?"active":""}" data-nav="${t.id}">
-            ${t.icon}<span>${t.label}</span>
-          </button>`).join("")}
+        ${btn(tabs[0])}${btn(tabs[1])}
+        <div class="nav-scan"><button data-act="scan">${ICONS.scan}<span>Scan</span></button></div>
+        ${btn(tabs[2])}${btn(tabs[3])}
       </div>
       <div class="side-nav">
         ${tabs.map(t=>`<button class="${top===t.id?"active":""}" data-nav="${t.id}">${t.label}</button>`).join("")}
-      </div>
-    `;
-  }
-  function tabIdForSubview(){
-    if(state.view==="boxDetail") return "boxes";
-    if(state.view==="cableDetail") return "cables";
-    return state.view;
+        <button class="scan-desktop" data-act="scan">QR scannen</button>
+      </div>`;
   }
 
-  function topbar(){
+  function heuteZahlen(){
+    const heute = new Date().toLocaleDateString("de-CH");
+    const mv = effectiveMovements().filter(m => m.date === heute);
+    return {
+      raus: mv.filter(m=>m.type==="entnahme").reduce((a,m)=>a+Math.abs(toInt(m.qty,0)),0),
+      rein: mv.filter(m=>m.type!=="entnahme").reduce((a,m)=>a+Math.abs(toInt(m.qty,0)),0),
+      leute: new Set(mv.map(m=>m.user).filter(Boolean)).size
+    };
+  }
+  function haeufig(){
+    const grenze = Date.now() - 30*24*3600*1000;
+    const zaehler = {};
+    effectiveMovements().forEach(m=>{
+      if(m.type !== "entnahme" || (m.ts||0) < grenze) return;
+      zaehler[m.cableId] = (zaehler[m.cableId]||0) + Math.abs(toInt(m.qty,0));
+    });
+    return Object.entries(zaehler)
+      .map(([id,n])=>({item:itemById(id), n}))
+      .filter(x=>x.item)
+      .sort((a,b)=>b.n-a.n)
+      .slice(0,4);
+  }
+
+  function heroCard(){
+    const r = readiness();
+    const stufe = r.crit ? "crit" : (r.warn ? "warn" : "ok");
     return h`
-      <div class="topbar">
-        <div class="topbar-row">
-          <div class="brand">
-            <div class="brand-mark">M</div>
-            <div><h1>Materiallager</h1><small><span class="sync-dot" style="background:${state.online?"var(--ok)":"var(--danger)"}"></span>${!firebaseConfigured()?"Firebase-Key beim Deploy nicht eingesetzt":(state.firebaseError?"Firebase-Fehler":(state.online?"Firebase verbunden · live":"Keine Live-Verbindung"))}</small></div>
-          </div>
-          <button class="icon-btn" data-nav="settings" aria-label="Einstellungen">${ICONS.settings}</button>
+      <section class="hero lv-${stufe}">
+        <div class="hero-top">
+          <span class="eyebrow" style="margin:0;">Servicefahrzeug</span>
+          ${livePill()}
         </div>
-        <div class="search-row">
-          <input class="search-input" id="globalSearch" placeholder="Material suchen, z. B. HDMI Flex 2m" value="${esc(state.search)}">
+        <div class="hero-main">
+          <div class="hero-pct"><span>${r.pct}</span><small>% einsatzbereit</small></div>
+          <div class="hero-ring" style="--pct:${r.pct}"><span>${statusDot(stufe)}</span></div>
         </div>
-      </div>
-    `;
+        <div class="hero-bar">
+          <i style="flex:${r.ok||0.001}" class="lv-ok"></i>
+          <i style="flex:${r.warn||0.001}" class="lv-warn"></i>
+          <i style="flex:${r.crit||0.001}" class="lv-crit"></i>
+        </div>
+        <p class="hero-sub">${r.ok} von ${r.total} Positionen erfüllen ihren Mindestbestand${r.need?` · ${r.need} Stück fehlen`:""}</p>
+      </section>`;
+  }
+  function livePill(){
+    if(state.sendError || state.authError) return `<span class="live-pill lv-crit">${statusDot("crit")}Nicht verbunden</span>`;
+    if(state.outbox.length) return `<span class="live-pill lv-warn">${statusDot("warn")}${state.outbox.length} warten</span>`;
+    if(!state.connKnown) return `<span class="live-pill">${statusDot("idle")}Verbinde</span>`;
+    if(!state.online) return `<span class="live-pill lv-warn">${statusDot("warn")}Offline</span>`;
+    return `<span class="live-pill lv-ok">${statusDot("ok")}Live</span>`;
   }
 
   function renderDashboard(){
-    const totalBoxes = state.boxes.length;
-    const totalCables = state.cables.length;
-    const today = new Date().toLocaleDateString("de-CH");
-    const todayCount = state.movements.filter(m=>m.type==="entnahme" && m.date===today).length;
-    const low = state.cables.filter(c=>{ const s=currentStock(c.id); return s>0 && s<=c.minStock; });
-    const zero = state.cables.filter(c=> currentStock(c.id) <= 0);
-
+    const r = readiness();
+    const low = lowItems();
+    const t = heuteZahlen();
+    const oft = haeufig();
+    const recent = effectiveMovements().slice(0,4);
     return h`
-      <div class="eyebrow">Übersicht</div>
-      <h2 class="section-title">Dein Lager auf einen Blick</h2>
-      <div class="stat-grid">
-        <div class="stat-card"><div class="num">${totalBoxes}</div><div class="label">Kisten</div></div>
-        <div class="stat-card"><div class="num">${totalCables}</div><div class="label">Materialtypen</div></div>
-        <div class="stat-card"><div class="num">${todayCount}</div><div class="label">Entnahmen heute</div></div>
-        <div class="stat-card alert"><div class="num">${low.length}</div><div class="label">Niedriger Bestand</div></div>
-        <div class="stat-card alert zero"><div class="num">${zero.length}</div><div class="label">Bestand 0</div></div>
-      </div>
+      ${state.user ? "" : h`<div class="banner">Noch kein Name hinterlegt – dann sieht niemand, wer etwas entnommen hat.<button data-nav="settings">Eintragen</button></div>`}
 
-      <div class="quick-grid">
-        <button class="quick-btn" data-nav="boxes">${ICONS.box}Kisten</button>
-        <button class="quick-btn" data-nav="cables">${ICONS.cable}Material</button>
-        <button class="quick-btn" data-nav="movements">${ICONS.list}Entnahmen</button>
-        <button class="quick-btn" data-action="return-flow">${ICONS.undo}Auffüllen</button>
-      </div>
+      <div class="cockpit">
+        <div class="col-a">
+          ${heroCard()}
 
-      ${ (low.length+zero.length) ? h`
-        <div class="subhead"><h3 class="section-title" style="font-size:17px;margin:0;">Was fehlt</h3></div>
-        ${zero.concat(low).slice(0,8).map(c=>cableRow(c)).join("")}
-      ` : ""}
-
-      <div class="subhead">
-        <h3 class="section-title" style="font-size:17px;margin:0;">Letzte Entnahmen</h3>
-        <button class="link-btn" data-nav="movements">Alle ansehen</button>
-      </div>
-      ${state.movements.length ? state.movements.slice(0,4).map(movementRow).join("") : emptyState("📋","Noch keine Entnahmen erfasst.")}
-    `;
-  }
-
-  function emptyState(glyph, text){ return h`<div class="empty-state"><div class="glyph">${glyph}</div><p>${text}</p></div>`; }
-
-  function cableRow(c){
-    const st = stockStatus(c);
-    const badgeClass = st.level==="ok" ? "stock-ok" : (st.level==="warn" ? "stock-warn" : "stock-danger");
-    const icon = st.level==="ok" ? "" : (st.level==="warn" ? "🟠 " : "🔴 ");
-    const box = state.boxes.find(b=>b.id===c.boxId);
-    return h`
-      <div class="cable-row" data-cable="${c.id}" data-action="open-cable">
-        <div class="cable-row-top">
-          <div>
-            <p class="cable-name">${esc(c.name)}</p>
-            <div class="cable-sub">
-              <span class="chip" style="${chipStyle(c.category)}">${esc(c.category)}</span>
-              <span style="font-size:11.5px;color:var(--muted);">${box?esc(box.name):""}</span>
-            </div>
+          <div class="action-row">
+            <button class="action ${r.crit?"lv-crit":""}" data-act="filter-empty">
+              <span class="n">${r.crit}</span><span class="l">Leer</span>
+            </button>
+            <button class="action ${r.warn?"lv-warn":""}" data-nav="refill">
+              <span class="n">${r.warn}</span><span class="l">Kritisch</span>
+            </button>
+            <button class="action" data-nav="movements">
+              <span class="n">${t.raus}</span><span class="l">Heute raus</span>
+            </button>
           </div>
-          <span class="stock-badge ${badgeClass}">${icon}${st.stock} Stk.</span>
+
+          <div class="quick-grid">
+            <button class="quick-btn accent" data-act="scan">${ICONS.scan}Scannen</button>
+            <button class="quick-btn" data-nav="cables">${ICONS.search}Suchen</button>
+            <button class="quick-btn" data-nav="boxes">${ICONS.box}Kisten</button>
+            <button class="quick-btn" data-nav="refill">${ICONS.undo}Nachfüllen</button>
+            <button class="quick-btn" data-act="add-material">${ICONS.plus}Material</button>
+            <button class="quick-btn" data-nav="movements">${ICONS.list}Verlauf</button>
+          </div>
         </div>
-      </div>
-    `;
+
+        <div class="col-b">
+          <div class="subhead"><h3>Kritisch für den nächsten Einsatz</h3>${low.length?`<button class="link-btn" data-nav="refill">Alle ${low.length}</button>`:""}</div>
+          ${low.length ? low.slice(0,5).map(critRow).join("")
+            : h`<div class="empty-state ok-state">
+                  <div class="glyph lv-ok">${ICONS.check}</div>
+                  <strong>Fahrzeug vollständig bereit</strong>
+                  <p>Alle ${r.total} Positionen erfüllen ihren Mindestbestand.</p>
+                </div>`}
+
+          ${oft.length >= 3 ? h`
+            <div class="subhead"><h3>Häufig verwendet</h3></div>
+            <div class="tagline">
+              ${oft.map(x=>`<button class="usebtn" data-act="open-item" data-id="${x.item.id}">${esc(x.item.name)}<span>${x.n}×</span></button>`).join("")}
+            </div>` : ""}
+        </div>
+
+        <div class="col-c">
+          <div class="subhead"><h3>Heute</h3></div>
+          <div class="today">
+            <div><span class="n">${t.raus}</span><span class="l">entnommen</span></div>
+            <div><span class="n">${t.rein}</span><span class="l">zurück</span></div>
+            <div><span class="n">${t.leute}</span><span class="l">Techniker</span></div>
+          </div>
+          <div class="subhead"><h3>Letzte Buchungen</h3><button class="link-btn" data-nav="movements">Alle</button></div>
+          ${recent.length ? `<div class="panel">${recent.map(movementRow).join("")}</div>`
+            : emptyState("list","Noch nichts gebucht","Sobald jemand scannt und entnimmt, steht es hier.")}
+        </div>
+      </div>`;
   }
 
-  function movementRow(m){
-    const cable = state.cables.find(c=>c.id===m.cableId);
-    const box = cable ? state.boxes.find(b=>b.id===cable.boxId) : null;
-    const isOut = m.type === "entnahme";
+  function critRow(x){
+    const box = boxById(x.item.boxId);
     return h`
-      <div class="movement-row">
-        <div class="mv-icon ${isOut?"mv-out":"mv-in"}">${isOut?"−":"+"}</div>
-        <div class="mv-main">
-          <div class="mv-title">${cable?esc(cable.name):"Unbekanntes Material"}</div>
-          <div class="mv-meta">${box?esc(box.name):"–"} · ${m.date} ${m.time}${m.user?" · "+esc(m.user):""}</div>
-        </div>
-        <div class="mv-qty" style="color:${isOut?"var(--danger)":"var(--ok)"}">${isOut?"−":"+"}${m.qty}</div>
-      </div>
-    `;
+      <button class="crit-card lv-${x.level}" data-act="qty-sheet" data-id="${x.item.id}" data-mode="auffuellen" data-preset="${x.need}">
+        <span class="crit-main">
+          <span class="crit-name">${esc(x.item.name)}</span>
+          <span class="crit-meta">${box?esc(String(box.id).toUpperCase())+" · "+esc(box.name):""}</span>
+        </span>
+        <span class="crit-right">
+          <span class="crit-num">${x.stock}<small>/${x.target}</small></span>
+          <span class="tag lv-${x.level}">${x.level==="crit"?"Leer":"+"+x.need+" nachfüllen"}</span>
+        </span>
+      </button>`;
   }
 
+  function boxStat(boxId){
+    const its = itemsOfBox(boxId);
+    let ok=0, warn=0, crit=0;
+    its.forEach(i=>{ const l = statusOf(i).level; if(l==="ok") ok++; else if(l==="warn") warn++; else crit++; });
+    return {total:its.length, ok, warn, crit, level: crit?"crit":(warn?"warn":"ok")};
+  }
   function renderBoxes(){
-    const q = state.search.trim().toLowerCase();
-    const boxes = q ? state.boxes.filter(b => b.name.toLowerCase().includes(q) || b.description.toLowerCase().includes(q)) : state.boxes;
+    const q = normalize(state.search);
+    const boxes = state.boxes.filter(b=>{
+      if(!q) return true;
+      if(normalize(b.name+" "+(b.description||"")+" "+b.id).includes(q)) return true;
+      return itemsOfBox(b.id).some(i=>normalize(i.name+" "+i.category).includes(q));
+    });
     return h`
-      <div class="eyebrow">Kisten</div>
+      <div class="eyebrow">Fahrzeug</div>
       <h2 class="section-title">Alle Materialkisten</h2>
+      <p class="lead">Antippen für den Inhalt. Am schnellsten geht es über den QR-Code an der Kiste.</p>
       ${boxes.map(b=>{
-        const count = boxCableCount(b.id);
-        const anyAlert = state.cables.filter(c=>c.boxId===b.id).some(c=>currentStock(c.id) <= c.minStock);
+        const st = boxStat(b.id);
+        const treffer = q ? itemsOfBox(b.id).filter(i=>normalize(i.name).includes(q)) : [];
         return h`
-        <div class="crate-card" data-box="${b.id}" data-action="open-box">
-          <div class="crate-punch"><div class="hole"></div><div class="hole"></div><div class="hole"></div></div>
-          <div class="crate-body">
-            <span class="crate-id">${esc(b.id.toUpperCase())}</span>
-            <h3>${esc(b.name)} — ${esc(b.description)}</h3>
-            <div class="crate-meta">${count} Materialtypen${anyAlert?" · ⚠️ Bestand prüfen":""}</div>
-          </div>
-          <div class="crate-arrow">›</div>
-        </div>
-      `;}).join("") || emptyState("📦","Keine Kiste gefunden.")}
-    `;
+        <button class="crate-card lv-${st.level}" data-act="open-box" data-id="${b.id}">
+          <span class="crate-body">
+            <span class="crate-top">
+              <span class="crate-id">${esc(String(b.id).toUpperCase())}</span>
+              <span class="tag lv-${st.level}">${statusDot(st.level)}${st.level==="ok" ? "Vollständig" : (st.crit? st.crit+" leer" : st.warn+" kritisch")}</span>
+            </span>
+            <h3>${esc(b.name)}${b.description?" — "+esc(b.description):""}</h3>
+            <span class="crate-meta">${st.ok} / ${st.total} Positionen in Ordnung${treffer.length?" · Treffer: "+esc(treffer.slice(0,2).map(i=>i.name).join(", ")):""}</span>
+            <span class="crate-bar">
+              <i class="lv-ok" style="flex:${st.ok||0.001}"></i>
+              <i class="lv-warn" style="flex:${st.warn||0.001}"></i>
+              <i class="lv-crit" style="flex:${st.crit||0.001}"></i>
+            </span>
+          </span>
+          <span class="crate-arrow">›</span>
+        </button>`;}).join("") || emptyState("box","Keine Kiste gefunden","Andere Schreibweise versuchen.")}
+      <button class="btn btn-outline" style="width:100%;margin-top:8px;" data-act="box-form">${ICONS.plus} Neue Kiste anlegen</button>`;
   }
 
   function renderBoxDetail(){
-    const box = state.boxes.find(b=>b.id===state.activeBoxId);
-    if(!box) return emptyState("📦","Kiste nicht gefunden.");
-    const cables = state.cables.filter(c=>c.boxId===box.id);
-    const selectedIds = Object.keys(state.selection).filter(id => state.selection[id] > 0 && cables.some(c=>c.id===id));
+    const box = boxById(state.activeBoxId);
+    if(!box) return emptyState("box","Kiste nicht gefunden","Sie wurde vielleicht gelöscht.");
+    const q = normalize(state.search);
+    const st = boxStat(box.id);
+    let its = itemsOfBox(box.id);
+    const alleKats = Array.from(new Set(its.map(i=>i.category)));
+    if(state.boxCat && alleKats.includes(state.boxCat)) its = its.filter(i=>i.category===state.boxCat);
+    if(q) its = its.filter(i=>normalize(i.name+" "+i.category+" "+(i.description||"")).includes(q));
+    const picked = Object.keys(state.selection).filter(id => state.selection[id] > 0 && its.some(i=>i.id===id));
+    const total = picked.reduce((a,id)=>a+state.selection[id],0);
+
+    const groups = {};
+    its.forEach(i=>{ (groups[i.category] = groups[i.category] || []).push(i); });
+    const cats = Object.keys(groups);
 
     return h`
-      <button class="btn btn-outline btn-sm" data-nav="boxes" style="margin-bottom:14px;">${ICONS.back} Alle Kisten</button>
-      <div class="eyebrow">${esc(box.id.toUpperCase())}</div>
-      <h2 class="section-title">${esc(box.name)} — ${esc(box.description)}</h2>
-
-      <div style="display:flex; gap:8px; margin-bottom:16px;">
-        <button class="btn btn-outline btn-sm" data-action="show-qr" data-box="${box.id}">${ICONS.qr} QR-Code</button>
-        <button class="btn btn-outline btn-sm" data-action="return-flow" data-box="${box.id}">${ICONS.undo} Auffüllen</button>
-      </div>
-
-      <p class="field-label">Material auswählen und Menge angeben</p>
-      ${cables.map(c=>{
-        const st = stockStatus(c);
-        const badgeClass = st.level==="ok" ? "stock-ok" : (st.level==="warn" ? "stock-warn" : "stock-danger");
-        const icon = st.level==="ok" ? "" : (st.level==="warn" ? "🟠 " : "🔴 ");
-        const checked = !!state.selection[c.id];
-        const qty = state.selection[c.id] || 1;
-        const disabled = st.stock <= 0;
-        return h`
-        <div class="cable-row">
-          <div class="checkline">
-            <input type="checkbox" id="chk-${c.id}" data-select="${c.id}" ${checked?"checked":""} ${disabled?"disabled":""}>
-            <label for="chk-${c.id}">
-              ${esc(c.name)} <span class="chip" style="${chipStyle(c.category)}; margin-left:6px;">${esc(c.category)}</span>
-            </label>
-            <span class="stock-badge ${badgeClass}">${icon}${st.stock} Stk.</span>
-          </div>
-          ${checked ? h`
-            <div style="display:flex; align-items:center; gap:8px; padding:2px 4px 4px 33px;">
-              <span class="field-label" style="margin:0;">Menge</span>
-              <input type="number" min="1" max="${st.stock}" class="qty-input" data-qty="${c.id}" value="${Math.min(qty, st.stock||1)}">
-              <span style="font-size:12px;color:var(--muted);">von ${st.stock} verfügbar</span>
-            </div>
-          ` : ""}
+      <button class="btn btn-outline btn-sm" data-nav="boxes" style="margin-bottom:16px;">${ICONS.back} Alle Kisten</button>
+      <div class="box-head lv-${st.level}">
+        <div class="crate-top">
+          <span class="crate-id">${esc(String(box.id).toUpperCase())}</span>
+          <span class="tag lv-${st.level}">${statusDot(st.level)}${st.level==="ok"?"Vollständig":(st.crit?st.crit+" leer":st.warn+" kritisch")}</span>
         </div>
-      `;}).join("") || emptyState("🔌","Diese Kiste enthält noch kein Material.")}
-
-      <div class="sticky-cta">
-        <button class="btn btn-primary" id="confirmEntnahme" ${selectedIds.length? "" : "disabled"}>
-          Entnahme bestätigen ${selectedIds.length? "(" + selectedIds.length + ")" : ""}
-        </button>
+        <h2 class="section-title" style="margin:10px 0 4px;">${esc(box.name)}</h2>
+        <p class="lead" style="margin:0 0 10px;">${box.description?esc(box.description)+" · ":""}${st.ok} von ${st.total} Positionen in Ordnung</p>
+        <span class="crate-bar">
+          <i class="lv-ok" style="flex:${st.ok||0.001}"></i>
+          <i class="lv-warn" style="flex:${st.warn||0.001}"></i>
+          <i class="lv-crit" style="flex:${st.crit||0.001}"></i>
+        </span>
       </div>
-    `;
+
+      ${alleKats.length > 1 ? h`
+        <div class="cat-nav">
+          <button class="${state.boxCat?"":"on"}" data-act="box-cat" data-cat="">Alle</button>
+          ${alleKats.map(c=>`<button class="${state.boxCat===c?"on":""}" data-act="box-cat" data-cat="${esc(c)}">${esc(c)}</button>`).join("")}
+        </div>` : ""}
+
+      ${cats.length ? cats.map(cat=>h`
+        ${alleKats.length > 1 && !state.boxCat ? `<p class="field-label" style="margin-top:18px;">${esc(cat)}</p>` : ""}
+        ${groups[cat].map(i=>itemRow(i, {pick:true, take:true})).join("")}
+      `).join("") : emptyState("cable", q?"Nichts gefunden":"Kiste ist noch leer", q?"Suchbegriff anpassen.":"Unten das erste Material erfassen.")}
+
+      <div class="btn-row" style="margin-top:16px;">
+        <button class="btn btn-outline btn-sm" data-act="item-form" data-box="${box.id}">${ICONS.plus} Material</button>
+        <button class="btn btn-outline btn-sm" data-act="show-qr" data-id="${box.id}">${ICONS.qr} QR-Code</button>
+        <button class="btn btn-outline btn-sm" data-act="box-form" data-id="${box.id}">${ICONS.edit} Kiste</button>
+      </div>
+
+      ${picked.length ? h`
+      <div class="sticky-cta">
+        <button class="btn btn-primary" data-act="confirm-take">Entnahme buchen · ${total} Stück aus ${picked.length} Position(en)</button>
+      </div>` : ""}`;
   }
 
-  function renderCables(){
-    const q = state.search.trim().toLowerCase();
-    let cables = state.cables;
-    if(state.filters.category) cables = cables.filter(c=>c.category===state.filters.category);
-    if(state.filters.box) cables = cables.filter(c=>c.boxId===state.filters.box);
-    if(q) cables = cables.filter(c=> c.name.toLowerCase().includes(q));
-
+  function renderItems(){
+    const q = normalize(state.search);
+    let its = state.items.slice();
+    if(state.filters.category) its = its.filter(i=>i.category===state.filters.category);
+    if(state.filters.box) its = its.filter(i=>i.boxId===state.filters.box);
+    if(state.filters.status){
+      its = its.filter(i=>{
+        const st = statusOf(i);
+        if(state.filters.status === "da") return st.level === "ok";
+        if(state.filters.status === "niedrig") return st.level === "warn";
+        if(state.filters.status === "leer") return st.level === "crit";
+        return true;
+      });
+    }
+    if(q) its = its.filter(i=>{
+      const box = boxById(i.boxId);
+      return normalize(i.name + " " + i.category + " " + (i.description||"") + " " +
+                       (box ? box.name + " " + box.id : "")).includes(q);
+    });
     const grouped = {};
-    cables.forEach(c=>{ (grouped[c.category] = grouped[c.category]||[]).push(c); });
-    const cats = Object.keys(grouped).sort((a,b)=>a.localeCompare(b,'de'));
-
+    its.forEach(i=>{ (grouped[i.category] = grouped[i.category]||[]).push(i); });
+    const cats = Object.keys(grouped).sort((a,b)=>a.localeCompare(b,"de"));
     return h`
       <div class="eyebrow">Bestand</div>
       <h2 class="section-title">Alles Material</h2>
       <div class="filter-bar">
+        <select id="filterStatus">
+          <option value="">Jeder Bestand</option>
+          <option value="da" ${state.filters.status==="da"?"selected":""}>In Ordnung</option>
+          <option value="niedrig" ${state.filters.status==="niedrig"?"selected":""}>Kritisch</option>
+          <option value="leer" ${state.filters.status==="leer"?"selected":""}>Leer</option>
+        </select>
         <select id="filterCategory">
           <option value="">Alle Kategorien</option>
           ${allCategories().map(c=>`<option value="${esc(c)}" ${state.filters.category===c?"selected":""}>${esc(c)}</option>`).join("")}
@@ -725,50 +1506,137 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gst
           ${state.boxes.map(b=>`<option value="${b.id}" ${state.filters.box===b.id?"selected":""}>${esc(b.name)}</option>`).join("")}
         </select>
       </div>
+      <p class="lead" style="margin-top:-6px;">${its.length} von ${state.items.length} Materialtypen</p>
       ${cats.length ? cats.map(cat=>h`
         <p class="field-label" style="margin-top:14px;">${esc(cat)}</p>
-        ${grouped[cat].map(c=>cableRow(c)).join("")}
-      `).join("") : emptyState("🔍","Kein Material gefunden.")}
-    `;
+        ${grouped[cat].sort(bySort).map(i=>itemRow(i,{showBox:true, take:true})).join("")}
+      `).join("") : emptyState("search","Kein Material gefunden","Filter zurücksetzen oder anders suchen.")}`;
   }
 
-  function renderCableDetail(){
-    const cable = state.cables.find(c=>c.id===state.activeCableId);
-    if(!cable) return emptyState("🔌","Material nicht gefunden.");
-    const box = state.boxes.find(b=>b.id===cable.boxId);
-    const st = stockStatus(cable);
-    const hist = state.movements.filter(m=>m.cableId===cable.id);
+  function renderItemDetail(){
+    const it = itemById(state.activeItemId);
+    if(!it) return emptyState("cable","Material nicht gefunden","Es wurde vielleicht gelöscht.");
+    const box = boxById(it.boxId);
+    const st = statusOf(it);
+    const hist = effectiveMovements().filter(m=>m.cableId===it.id);
+    const pct = Math.min(100, Math.round(st.stock / Math.max(1, st.target) * 100));
+    const minPct = Math.min(100, Math.round(st.min / Math.max(1, st.target) * 100));
+    return h`
+      <button class="btn btn-outline btn-sm" data-act="back-from-item" style="margin-bottom:16px;">${ICONS.back} Zurück</button>
+      <div class="eyebrow">${esc(it.category)}${box?" · "+esc(box.name):""}</div>
+      <h2 class="section-title">${esc(it.name)}</h2>
+      ${it.description ? `<p class="lead">${esc(it.description)}</p>` : ""}
+
+      <div class="detail-stock lv-${st.level}">
+        <div class="ds-top">
+          <span class="ds-num">${st.stock}<small>/ ${st.target}</small></span>
+          <span class="tag lv-${st.level}">${statusDot(st.level)}${st.label}${st.need?" · +"+st.need:""}</span>
+        </div>
+        <div class="ds-track">
+          <i class="ds-fill lv-${st.level}" style="width:${pct}%"></i>
+          <i class="ds-mark" style="left:${minPct}%"></i>
+        </div>
+        <div class="ds-legend">
+          <span>Mindestbestand <b>${st.min}</b></span>
+          <span>Sollbestand <b>${st.target}</b></span>
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin:16px 0 9px;">
+        <button class="btn btn-primary" data-act="qty-sheet" data-id="${it.id}" data-mode="entnahme" ${st.stock<=0?"disabled":""}>Entnehmen</button>
+        <button class="btn btn-outline" data-act="qty-sheet" data-id="${it.id}" data-mode="auffuellen" data-preset="${Math.max(1,st.need)}">${ICONS.undo} Auffüllen</button>
+      </div>
+      <div class="btn-row" style="margin-bottom:20px;">
+        <button class="btn btn-outline btn-sm" data-act="item-form" data-box="${it.boxId}" data-id="${it.id}">${ICONS.edit} Bearbeiten</button>
+        <button class="btn btn-outline btn-sm" data-act="open-box" data-id="${it.boxId}">Zur Kiste</button>
+      </div>
+
+      <div class="subhead"><h3>Verlauf</h3></div>
+      ${hist.length ? `<div class="panel">${hist.slice(0,40).map(movementRow).join("")}</div>`
+        : emptyState("list","Noch keine Bewegung","Für dieses Material wurde noch nichts gebucht.")}`;
+  }
+
+  function renderRefill(){
+    const low = lowItems();
+    const r = readiness();
+    const gruppen = {};
+    low.forEach(x=>{ (gruppen[x.item.boxId] = gruppen[x.item.boxId] || []).push(x); });
+    const boxIds = Object.keys(gruppen).sort((a,b)=>{
+      const A = boxById(a), B = boxById(b);
+      return String(A?A.sort:0) - String(B?B.sort:0) || String(a).localeCompare(String(b));
+    });
 
     return h`
-      <button class="btn btn-outline btn-sm" data-nav="cables" style="margin-bottom:14px;">${ICONS.back} Alles Material</button>
-      <div class="eyebrow">${esc(cable.category)} · ${box?esc(box.name):""}</div>
-      <h2 class="section-title">${esc(cable.name)}</h2>
-      <div class="stat-card" style="display:inline-block; margin-bottom:16px;">
-        <div class="num">${st.stock}</div>
-        <div class="label">Aktueller Bestand${st.level!=="ok"? " · "+(st.level==="warn"?"🟠 niedrig":"🔴 leer") : ""}</div>
-      </div>
-      <div style="display:flex; gap:8px; margin-bottom:18px;">
-        <button class="btn btn-outline btn-sm" data-action="open-box" data-box="${cable.boxId}">Zur Kiste</button>
-        <button class="btn btn-outline btn-sm" data-action="return-single" data-cable="${cable.id}">${ICONS.undo} Auffüllen</button>
-      </div>
-      <p class="field-label">Verlauf</p>
-      ${hist.length ? hist.map(movementRow).join("") : emptyState("📋","Für dieses Material gibt es noch keine Bewegungen.")}
-    `;
+      <div class="eyebrow">Nachschub</div>
+      <h2 class="section-title">Nachfüllen</h2>
+      ${low.length ? h`
+        <div class="refill-head">
+          <div><span class="n">${low.length}</span><span class="l">Positionen</span></div>
+          <div><span class="n">${r.need}</span><span class="l">Stück fehlen</span></div>
+          <div><span class="n lv-crit">${r.crit}</span><span class="l">leer</span></div>
+          <div><span class="n lv-warn">${r.warn}</span><span class="l">kritisch</span></div>
+        </div>
+        <div class="seg-switch">
+          <button class="${state.refillGroup?"":"on"}" data-act="refill-mode" data-mode="liste">Nach Dringlichkeit</button>
+          <button class="${state.refillGroup?"on":""}" data-act="refill-mode" data-mode="kiste">Nach Kiste</button>
+        </div>
+        ${state.refillGroup
+          ? boxIds.map(bid=>{
+              const b = boxById(bid), eintraege = gruppen[bid];
+              const stueck = eintraege.reduce((a,x)=>a+x.need,0);
+              const offen = state.groupOpen[bid] !== false;
+              return h`
+                <div class="group">
+                  <button class="group-head" data-act="toggle-group" data-id="${bid}">
+                    <span class="crate-id">${esc(String(bid).toUpperCase())}</span>
+                    <span class="group-name">${b?esc(b.name):"Unbekannte Kiste"}</span>
+                    <span class="group-meta">${eintraege.length} Positionen · ${stueck} Stück</span>
+                    <span class="group-arrow ${offen?"open":""}">${ICONS.chevron}</span>
+                  </button>
+                  ${offen ? eintraege.map(refillCard).join("") : ""}
+                </div>`;
+            }).join("")
+          : low.map(refillCard).join("")}
+        <button class="btn btn-outline" style="width:100%;margin-top:16px;" data-act="export-csv">Liste als CSV exportieren</button>
+      ` : h`
+        <div class="empty-state ok-state">
+          <div class="glyph lv-ok">${ICONS.check}</div>
+          <strong>Alles bereit für den nächsten Einsatz</strong>
+          <p>Alle ${r.total} Positionen erfüllen ihren Mindestbestand. Nichts nachzufüllen.</p>
+        </div>`}`;
+  }
+
+  function refillCard(x){
+    const box = boxById(x.item.boxId);
+    return h`
+      <div class="refill-card lv-${x.level}${state.flash===x.item.id?" flash":""}">
+        <button class="rc-main" data-act="open-item" data-id="${x.item.id}">
+          <span class="rc-name">${esc(x.item.name)}</span>
+          <span class="rc-where">${box?esc(String(box.id).toUpperCase())+" · "+esc(x.item.category):esc(x.item.category)}</span>
+          <span class="rc-values">
+            <span><b>${x.stock}</b>Aktuell</span>
+            <span><b>${x.min}</b>Mindest</span>
+            <span><b>${x.target}</b>Soll</span>
+          </span>
+        </button>
+        <button class="rc-add" data-act="quick-refill" data-id="${x.item.id}" data-n="${x.need}">
+          +${x.need}
+        </button>
+      </div>`;
   }
 
   function renderMovements(){
-    let mvs = state.movements;
-    if(state.filters.box) mvs = mvs.filter(m=>{ const c=state.cables.find(cc=>cc.id===m.cableId); return c && c.boxId===state.filters.box; });
-    if(state.filters.category) mvs = mvs.filter(m=>{ const c=state.cables.find(cc=>cc.id===m.cableId); return c && c.category===state.filters.category; });
+    let mvs = effectiveMovements();
+    if(state.filters.box) mvs = mvs.filter(m=> (m.boxId || (itemById(m.cableId)||{}).boxId) === state.filters.box);
+    if(state.filters.category) mvs = mvs.filter(m=> (m.category || (itemById(m.cableId)||{}).category) === state.filters.category);
     if(state.filters.user) mvs = mvs.filter(m=> (m.user||"Unbekannt") === state.filters.user);
-    const q = state.search.trim().toLowerCase();
-    if(q) mvs = mvs.filter(m=>{ const c=state.cables.find(cc=>cc.id===m.cableId); return c && c.name.toLowerCase().includes(q); });
-
+    const q = normalize(state.search);
+    if(q) mvs = mvs.filter(m=> normalize((itemById(m.cableId)||{}).name || m.name || "").includes(q));
     const users = Array.from(new Set(state.movements.map(m=>m.user||"Unbekannt")));
-
     return h`
       <div class="eyebrow">Historie</div>
       <h2 class="section-title">Entnahmen &amp; Auffüllen</h2>
+      <p class="lead">Läuft live mit: jede Buchung von jedem Gerät erscheint hier sofort.</p>
       <div class="filter-bar">
         <select id="filterCategory">
           <option value="">Alle Kategorien</option>
@@ -783,268 +1651,1051 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gst
           ${users.map(u=>`<option value="${esc(u)}" ${state.filters.user===u?"selected":""}>${esc(u)}</option>`).join("")}
         </select>
       </div>
-      ${mvs.length ? mvs.map(movementRow).join("") : emptyState("📋","Keine Einträge für diese Filter.")}
-    `;
+      ${mvs.length ? mvs.slice(0,200).map(movementRow).join("") : emptyState("list","Keine Einträge","Für diese Filter gibt es nichts.")}
+      ${state.movements.length ? `<button class="btn btn-outline" style="width:100%;margin-top:14px;" data-act="export-csv">Als CSV exportieren</button>` : ""}`;
   }
 
   function renderSettings(){
     return h`
       <div class="eyebrow">Einstellungen</div>
       <h2 class="section-title">Dein Gerät</h2>
-      <p class="field-label">Dein Name (für Entnahmen &amp; Auffüllen)</p>
-      <input class="kicker-input" id="userNameInput" placeholder="z. B. M. Keller" value="${esc(state.user)}">
-      <p style="font-size:12px;color:var(--muted);margin-top:-4px;">Der Name bleibt nur auf diesem Gerät gespeichert; bei jeder Buchung wird er in der gemeinsamen Historie mitgeschrieben.</p>
+      <div class="field">
+        <label class="field-label" for="userNameInput">Dein Name (erscheint bei jeder Buchung)</label>
+        <input class="kicker-input" id="userNameInput" placeholder="z. B. M. Keller" value="${esc(state.user)}">
+        <div class="hint">Bleibt auf diesem Gerät gespeichert.</div>
+      </div>
 
-      <div class="subhead"><h3 class="section-title" style="font-size:17px;margin:0;">Kisten &amp; QR-Codes</h3></div>
+      <div class="subhead"><h3>App aufs Handy</h3></div>
+      ${deferredPrompt
+        ? `<button class="btn btn-accent" data-act="install">App installieren</button>`
+        : h`<div class="empty-state" style="text-align:left;padding:14px 16px;">
+             <strong style="margin-bottom:6px;">So installierst du sie</strong>
+             <p style="margin:0;"><b>iPhone:</b> Seite in Safari öffnen → Teilen-Symbol → „Zum Home-Bildschirm".<br>
+             <b>Android:</b> Chrome → Menü (⋮) → „App installieren".</p>
+           </div>`}
+
+      <div class="subhead"><h3>Etiketten &amp; QR-Codes</h3></div>
+      <p class="hint" style="margin-top:0;">Jede Kiste bekommt ein Etikett mit Nummer, Inhalt und QR-Code.</p>
+      <button class="btn btn-outline" style="width:100%;" data-act="labels">${ICONS.print} Etiketten drucken</button>
+      <div class="field" style="margin-top:12px;">
+        <label class="field-label" for="baseUrlInput">Adresse, die der QR-Code öffnet</label>
+        <input class="kicker-input" id="baseUrlInput" value="${esc(baseUrl())}" spellcheck="false">
+        <div class="hint">Standard ist die Adresse dieser Seite. Nach dem Verschieben der App hier anpassen und Etiketten neu drucken.</div>
+      </div>
+      <button class="btn btn-outline btn-sm" data-act="save-baseurl">Adresse speichern</button>
+
+      <div class="subhead"><h3>Kisten</h3></div>
       ${state.boxes.map(b=>h`
         <div class="crate-card" style="cursor:default;">
-          <div class="crate-punch"><div class="hole"></div><div class="hole"></div><div class="hole"></div></div>
-          <div class="crate-body">
-            <span class="crate-id">${esc(b.id.toUpperCase())}</span>
-            <h3>${esc(b.name)} — ${esc(b.description)}</h3>
-            <div class="crate-meta">${boxCableCount(b.id)} Materialtypen</div>
-          </div>
-          <button class="btn btn-outline btn-sm" data-action="show-qr" data-box="${b.id}">QR</button>
-        </div>
-      `).join("")}
+          <span class="crate-body">
+            <span class="crate-id">${esc(String(b.id).toUpperCase())}</span>
+            <h3>${esc(b.name)}${b.description?" — "+esc(b.description):""}</h3>
+            <span class="crate-meta">${itemsOfBox(b.id).length} Materialtypen</span>
+          </span>
+          <button class="btn btn-outline btn-sm" data-act="show-qr" data-id="${b.id}">QR</button>
+        </div>`).join("")}
 
-      <div class="subhead"><h3 class="section-title" style="font-size:17px;margin:0;">Firebase-Status</h3></div>
-      <div class="stat-card" style="margin-bottom:12px;">
-        <div class="label">Verbindung</div>
-        <div style="font-size:13px;font-weight:700;margin-top:4px;">${state.online?"Verbunden":"Nicht verbunden"}</div>
-        <div class="label" style="margin-top:8px;">Anmeldung</div>
-        <div style="font-size:12px;margin-top:3px;word-break:break-all;">${state.firebaseUid?"Anonym angemeldet · "+esc(state.firebaseUid):"Noch nicht angemeldet"}</div>
-        <div class="label" style="margin-top:8px;">App Check</div>
-        <div style="font-size:12px;margin-top:3px;">${state.appCheckReady?"Aktiv":"Noch nicht eingerichtet"}</div>
-        ${state.firebaseError?`<div style="font-size:12px;color:var(--danger);margin-top:10px;">${esc(state.firebaseError)}</div>`:""}
-      </div>
-      <p style="font-size:12.5px;color:var(--muted);">Aus Sicherheitsgründen kann der komplette gemeinsame Verlauf nicht mehr direkt aus der öffentlichen Webseite gelöscht werden. Ein vollständiger Reset erfolgt bei Bedarf in der Firebase-Konsole.</p>
-    `;
+      <div class="subhead"><h3>Verbindung</h3></div>
+      ${state.catalogDenied ? h`
+        <div class="setup-card">
+          <h3>Materialliste noch aus der Datei</h3>
+          <p>Entnehmen und Auffüllen laufen normal. Neues Material in der App anlegen geht erst,
+             wenn Firebase den Zweig <b>materiallager/catalog</b> freigibt.</p>
+          <button class="btn btn-outline btn-sm" data-act="diagnose">Regeln anzeigen und prüfen</button>
+        </div>` : ""}
+      <p class="hint" style="margin-top:0;">Projekt <b>${esc(firebaseConfig.projectId)}</b> · Anmeldung ${state.authOk?"in Ordnung":"nicht bestätigt"}${state.authError?" ("+esc(state.authError)+")":""}</p>
+      <button class="btn btn-outline" style="width:100%;" data-act="diagnose">Verbindung prüfen</button>
+      ${state.outbox.length ? `<p class="hint" style="color:var(--warn);">${state.outbox.length} Buchung(en) liegen noch auf diesem Gerät${state.sendError?" – abgelehnt mit: "+esc(state.sendError):""}.</p>
+      <button class="btn btn-outline btn-sm" style="width:100%;margin-top:6px;" data-act="send-now">Jetzt senden</button>
+      <button class="btn btn-danger btn-sm" style="width:100%;margin-top:6px;" data-act="drop-queue">Warteschlange verwerfen</button>` : ""}
+
+      <div class="subhead"><h3>Daten</h3></div>
+      <p class="hint" style="margin-top:0;">Der Verlauf enthält alle Entnahmen und Auffüllungen. Ein Zurücksetzen löscht ihn für alle Geräte – die Bestände starten dann wieder beim erfassten Ausgangswert.</p>
+      <button class="btn btn-outline btn-sm" style="width:100%;margin-bottom:8px;" data-act="export-csv">Verlauf als CSV exportieren</button>
+      <button class="btn btn-danger btn-sm" style="width:100%;" data-act="reset-history">Verlauf zurücksetzen</button>
+      ${state.error ? `<p class="hint" style="color:var(--danger);margin-top:14px;">Letzte Firebase-Meldung: ${esc(state.error)}</p>` : ""}
+      <div class="subhead"><h3>Version</h3></div>
+      <p class="hint" style="margin-top:0;">Diese App ist <b>Version ${APP_VERSION}</b>. Steht hier eine kleinere Zahl, läuft noch eine alte, zwischengespeicherte Fassung.</p>
+      <button class="btn btn-outline btn-sm" style="width:100%;" data-act="force-update">Neu laden und Zwischenspeicher leeren</button>`;
   }
 
-  function qrModal(boxId){
-    const box = state.boxes.find(b=>b.id===boxId);
-    if(!box) return "";
-    const deepPath = "?kiste=" + box.id;
-    const qrData = encodeURIComponent(location.origin + location.pathname + deepPath);
-    return h`
-      <div class="qr-box">
-        <p class="field-label">QR-Code für ${esc(box.name)}</p>
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${qrData}" alt="QR-Code ${esc(box.name)}">
-        <p class="mono">${esc(deepPath)}</p>
-        <p style="font-size:12px;color:var(--muted); margin-top:10px;">Ausdrucken und auf der Innenseite des Kistendeckels anbringen. Nach dem Scannen öffnet sich diese Kiste direkt mit ihrer vollständigen Materialliste — sobald das Artifact veröffentlicht wurde, funktioniert der Link von jedem Smartphone aus.</p>
-        <button class="btn btn-outline btn-sm" data-action="close-qr" style="margin-top:10px;">Schließen</button>
-      </div>
-    `;
+  /* ================================================================
+     Render
+     ================================================================ */
+  function problemBanner(){
+    if(!firebaseConfigured()){
+      return `<div class="banner">Firebase ist in dieser Datei nicht hinterlegt.<button data-act="diagnose">Prüfen</button></div>`;
+    }
+    if(state.sendError){
+      return `<div class="banner">Firebase hat die Buchung abgelehnt (${esc(state.sendError)}). ${state.outbox.length} warten auf diesem Gerät.<button data-act="diagnose">Prüfen</button></div>`;
+    }
+    if(state.authError){
+      return `<div class="banner">Anmeldung bei Firebase nicht möglich – Buchungen bleiben auf diesem Gerät liegen.<button data-act="diagnose">Prüfen</button></div>`;
+    }
+    if(state.outbox.length){
+      return `<div class="banner">${state.outbox.length} Buchung(en) noch nicht gesendet.<button data-act="send-now">Jetzt senden</button></div>`;
+    }
+    return "";
   }
-
-  let qrOpenFor = null;
-  let returnFlowFor = null;
-  let toastTimer = null;
 
   function render(){
+    const activeId = document.activeElement && document.activeElement.id;
+    const selStart = document.activeElement && document.activeElement.selectionStart;
+
     let body = "";
-    if(!state.ready){ body = emptyState("⏳","Lager wird geladen …"); }
+    if(!state.ready) body = emptyState("clock","Lager wird geladen","Einen Moment.");
     else if(state.view==="dashboard") body = renderDashboard();
     else if(state.view==="boxes") body = renderBoxes();
     else if(state.view==="boxDetail") body = renderBoxDetail();
-    else if(state.view==="cables") body = renderCables();
-    else if(state.view==="cableDetail") body = renderCableDetail();
+    else if(state.view==="cables") body = renderItems();
+    else if(state.view==="itemDetail") body = renderItemDetail();
+    else if(state.view==="refill") body = renderRefill();
     else if(state.view==="movements") body = renderMovements();
     else if(state.view==="settings") body = renderSettings();
 
     app.innerHTML = h`
       ${topbar()}
-      <div class="view">${body}</div>
-      ${qrOpenFor ? `<div class="view" style="padding-top:0;">${qrModal(qrOpenFor)}</div>` : ""}
-      ${returnFlowFor ? returnFlowPanel() : ""}
-      <div class="footer-note">Bestand wird über Firebase geräteübergreifend live synchronisiert · Zugriff über Authentication und Security Rules geschützt</div>
-      ${nav()}
-    `;
-    bindEvents();
+      <div class="view">${problemBanner()}${body}</div>
+      <div class="footer-note">Bestände werden über Firebase live zwischen allen Geräten synchronisiert</div>
+      ${nav()}`;
+
+    if(activeId){
+      const el = document.getElementById(activeId);
+      if(el && el.focus){
+        el.focus();
+        if(selStart!=null && el.setSelectionRange){ try{ el.setSelectionRange(selStart, selStart); }catch(e){} }
+      }
+    }
   }
 
-  function returnFlowPanel(){
-    const cables = returnFlowFor === "all" ? state.cables : state.cables.filter(c=>c.boxId===returnFlowFor);
-    return h`
-      <div class="view" style="padding-top:0;">
-        <div class="crate-card" style="align-items:flex-start;">
-          <div class="crate-body" style="width:100%;">
-            <h3>Material auffüllen</h3>
-            <p class="field-label" style="margin-top:8px;">Material</p>
-            <select id="returnCableSelect" class="kicker-input">
-              ${cables.map(c=>`<option value="${c.id}" ${state.activeCableId===c.id?"selected":""}>${esc(c.name)} — ${esc((state.boxes.find(b=>b.id===c.boxId)||{}).name||"")}</option>`).join("")}
-            </select>
-            <p class="field-label">Menge</p>
-            <input type="number" min="1" id="returnQty" class="qty-input" value="1" style="width:100%;">
-            <div style="display:flex; gap:8px; margin-top:12px;">
-              <button class="btn btn-primary" id="confirmReturn" style="width:auto; flex:1;">+ Zurückbuchen</button>
-              <button class="btn btn-outline" id="cancelReturn">Abbrechen</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function showToast(msg){
+  /* ================================================================
+     Hinweise (Toast) mit Rückgängig
+     ================================================================ */
+  let toastTimer = null;
+  function toast(msg, cls, action){
     clearTimeout(toastTimer);
     const old = document.querySelector(".toast");
     if(old) old.remove();
     const t = document.createElement("div");
-    t.className = "toast"; t.textContent = msg;
+    t.className = "toast " + (cls||"");
+    const span = document.createElement("span");
+    span.className = "t";
+    span.textContent = msg;
+    t.appendChild(span);
+    if(action){
+      const b = document.createElement("button");
+      b.textContent = action.label;
+      b.addEventListener("click", ()=>{ t.remove(); action.fn(); });
+      t.appendChild(b);
+    }
     document.body.appendChild(t);
-    toastTimer = setTimeout(()=> t.remove(), 3200);
+    toastTimer = setTimeout(()=> t.remove(), action ? 6000 : 3400);
   }
 
-  function bindEvents(){
-    app.querySelectorAll("[data-nav]").forEach(btn=>{
-      btn.addEventListener("click", ()=>{
-        const target = btn.getAttribute("data-nav");
-        qrOpenFor = null; returnFlowFor = null;
-        state.view = target; state.search = "";
-        render();
-      });
-    });
+  /* ================================================================
+     Bottom-Sheet
+     ================================================================ */
+  const sheetLayer = document.getElementById("sheet-layer");
+  const sheetEl = document.getElementById("sheet");
+  let sheetOpen = false, sheetCloseCb = null;
+  function openSheet(html, tall, onClose){
+    sheetEl.className = "sheet" + (tall ? " tall" : "");
+    sheetEl.innerHTML = `<div class="grip"></div>` + html;
+    sheetLayer.classList.add("open");
+    sheetLayer.setAttribute("aria-hidden","false");
+    sheetOpen = true; sheetCloseCb = onClose || null;
+    document.body.style.overflow = "hidden";
+  }
+  function closeSheet(){
+    if(!sheetOpen) return;
+    sheetLayer.classList.remove("open");
+    sheetLayer.setAttribute("aria-hidden","true");
+    sheetOpen = false;
+    document.body.style.overflow = "";
+    const cb = sheetCloseCb; sheetCloseCb = null;
+    if(cb) cb();
+  }
 
-    app.querySelectorAll('[data-action="open-box"]').forEach(el=>{
-      el.addEventListener("click", ()=>{
-        state.activeBoxId = el.getAttribute("data-box");
-        state.view = "boxDetail"; state.selection = {};
-        qrOpenFor = null; returnFlowFor = null;
-        render();
-      });
-    });
-    app.querySelectorAll('[data-action="open-cable"]').forEach(el=>{
-      el.addEventListener("click", ()=>{
-        state.activeCableId = el.getAttribute("data-cable");
-        state.view = "cableDetail";
-        render();
-      });
-    });
-    app.querySelectorAll('[data-action="show-qr"]').forEach(el=>{
-      el.addEventListener("click", (e)=>{ e.stopPropagation(); qrOpenFor = el.getAttribute("data-box"); render(); window.scrollTo({top:document.body.scrollHeight, behavior:"smooth"}); });
-    });
-    app.querySelectorAll('[data-action="close-qr"]').forEach(el=>{
-      el.addEventListener("click", ()=>{ qrOpenFor = null; render(); });
-    });
-    app.querySelectorAll('[data-action="return-flow"]').forEach(el=>{
-      el.addEventListener("click", ()=>{ returnFlowFor = el.getAttribute("data-box") || "all"; render(); });
-    });
-    app.querySelectorAll('[data-action="return-single"]').forEach(el=>{
-      el.addEventListener("click", ()=>{ returnFlowFor = "all"; render(); });
-    });
+  /* ---------- Mengen-Sheet ---------- */
+  let qtyVal = 1, qtyItemId = null, qtyMode = "entnahme";
+  function sheetQty(itemId, mode, preset){
+    const it = itemById(itemId); if(!it) return;
+    const box = boxById(it.boxId);
+    const st = stockStatus(it);
+    qtyItemId = itemId; qtyMode = mode; qtyVal = Math.max(1, toInt(preset,1));
+    openSheet(h`
+      <div class="eyebrow">${box?esc(box.name):""} · ${mode==="entnahme"?"Entnahme":"Auffüllen"}</div>
+      <h2>${esc(it.name)}</h2>
+      <p class="sub">Bestand ${st.stock} Stk. · Mindestbestand ${toInt(it.minStock,0)}</p>
+      <div class="stepper">
+        <button data-act="qty-minus" aria-label="weniger">−</button>
+        <span class="val" id="qtyVal">${qtyVal}</span>
+        <button data-act="qty-plus" aria-label="mehr">+</button>
+      </div>
+      <div class="quick-qty">
+        ${[1,2,5,10,20].map(n=>`<button data-act="qty-set" data-n="${n}">${n}</button>`).join("")}
+      </div>
+      <button class="btn ${mode==="entnahme"?"btn-primary":"btn-accent"}" data-act="qty-book">
+        ${mode==="entnahme"?"Entnahme buchen":"Auffüllung buchen"}
+      </button>
+      <button class="btn btn-outline" style="width:100%;margin-top:8px;" data-act="sheet-close">Abbrechen</button>
+    `);
+  }
 
-    const cancelReturn = document.getElementById("cancelReturn");
-    if(cancelReturn) cancelReturn.addEventListener("click", ()=>{ returnFlowFor = null; render(); });
+  /* ---------- Material anlegen / bearbeiten ---------- */
+  function sheetItemForm(boxId, itemId){
+    const it = itemId ? itemById(itemId) : null;
+    const box = boxById(boxId) || (it ? boxById(it.boxId) : null);
+    const cats = Array.from(new Set(allCategories().concat(box?categoriesOfBox(box.id):[])));
+    const cur = it ? currentStock(it.id) : 0;
+    openSheet(h`
+      <div class="eyebrow">${box?esc(String(box.id).toUpperCase())+" · "+esc(box.name):""}</div>
+      <h2>${it ? "Material bearbeiten" : "Neues Material"}</h2>
+      <p class="sub">${it ? "Änderungen sind sofort auf allen Geräten sichtbar." : "Neu dazugekommen, zum Beispiel ein neuer Adapter? Hier erfassen."}</p>
+      <div class="field">
+        <label class="field-label" for="f-name">Bezeichnung</label>
+        <input id="f-name" placeholder="z. B. USB-C auf HDMI Adapter" value="${esc(it?it.name:"")}" autocomplete="off">
+      </div>
+      <div class="field">
+        <label class="field-label" for="f-cat">Kategorie</label>
+        <select id="f-cat">
+          ${cats.map(c=>`<option value="${esc(c)}" ${it&&it.category===c?"selected":""}>${esc(c)}</option>`).join("")}
+          <option value="__new">Neue Kategorie anlegen …</option>
+        </select>
+        <input id="f-cat-new" class="hide" style="margin-top:9px;" placeholder="Name der neuen Kategorie" autocomplete="off">
+      </div>
+      <div class="field">
+        <label class="field-label" for="f-box">Kiste</label>
+        <select id="f-box">
+          ${state.boxes.map(b=>`<option value="${b.id}" ${ (it? it.boxId : (box?box.id:"")) === b.id ?"selected":""}>${esc(String(b.id).toUpperCase())} · ${esc(b.name)}</option>`).join("")}
+        </select>
+        ${it ? `<div class="hint">Umstellen verschiebt das Material in eine andere Kiste.</div>` : ""}
+      </div>
+      <div class="field">
+        <label class="field-label" for="f-desc">Beschreibung <span style="text-transform:none;letter-spacing:0;font-weight:500;">(optional)</span></label>
+        <input id="f-desc" placeholder="z. B. 4K60, mit Zugentlastung" value="${esc(it?it.description||"":"")}" autocomplete="off">
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label class="field-label" for="f-qty">${it ? "Bestand jetzt" : "Anfangsbestand"}</label>
+          <input id="f-qty" type="number" inputmode="numeric" min="0" value="${it?cur:1}">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-target">Sollbestand</label>
+          <input id="f-target" type="number" inputmode="numeric" min="1" value="${it?targetOf(it):1}">
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="f-min">Mindestbestand</label>
+        <input id="f-min" type="number" inputmode="numeric" min="1" value="${it?minOf(it):1}">
+        <div class="hint">Ab dieser Menge wird gewarnt. Der Sollbestand bestimmt, auf wie viel wieder aufgefüllt wird.
+        ${it?"":" Beim Ändern des Sollbestands wird ein passender Wert vorgeschlagen."}</div>
+      </div>
+      ${it ? `<div class="hint" style="margin:-4px 0 14px;">Weicht der Bestand ab, wird die Differenz als Buchung im Verlauf festgehalten.</div>` : ""}
+      <button class="btn btn-primary" data-act="item-save" data-box="${box?box.id:""}" data-id="${itemId||""}">${it?"Speichern":"Material anlegen"}</button>
+      ${it ? `<button class="btn btn-danger" style="width:100%;margin-top:9px;" data-act="item-delete" data-id="${itemId}">Material löschen</button>` : ""}
+      <button class="btn btn-outline" style="width:100%;margin-top:9px;" data-act="sheet-close">Abbrechen</button>
+    `);
+    setTimeout(()=>{ const el=document.getElementById("f-name"); if(el) el.focus(); }, 250);
+  }
 
-    const confirmReturn = document.getElementById("confirmReturn");
-    if(confirmReturn) confirmReturn.addEventListener("click", async ()=>{
-      const cableId = document.getElementById("returnCableSelect").value;
-      const qty = Math.max(1, parseInt(document.getElementById("returnQty").value || "1", 10));
-      confirmReturn.disabled = true; confirmReturn.textContent = "Wird gespeichert …";
-      try{
-        await recordMovement(cableId, "rueckgabe", qty, state.user);
-        returnFlowFor = null; render();
-        showToast("Aufgefüllt: +" + qty + " Stück · live gespeichert");
-      }catch(e){
-        console.error(e);
-        confirmReturn.disabled = false; confirmReturn.textContent = "+ Zurückbuchen";
-        showToast("Speichern fehlgeschlagen: " + friendlyFirebaseError(e));
+  /* Vom Dashboard aus: zuerst Kiste wählen */
+  function sheetPickBox(){
+    openSheet(h`
+      <h2>In welche Kiste?</h2>
+      <p class="sub">Wähle die Kiste, in die das neue Material gehört.</p>
+      ${state.boxes.map(b=>h`
+        <button class="crate-card" data-act="pick-box" data-id="${b.id}">
+          <span class="crate-body">
+            <span class="crate-id">${esc(String(b.id).toUpperCase())}</span>
+            <h3>${esc(b.name)}${b.description?" — "+esc(b.description):""}</h3>
+            <span class="crate-meta">${itemsOfBox(b.id).length} Materialtypen</span>
+          </span>
+          <span class="crate-arrow">›</span>
+        </button>`).join("")}
+      <button class="btn btn-outline" style="width:100%;margin-top:10px;" data-act="sheet-close">Abbrechen</button>
+    `, true);
+  }
+
+  /* ---------- Kiste anlegen / bearbeiten ---------- */
+  function nextBoxId(){
+    let max = 0;
+    state.boxes.forEach(b=>{ const m=/^k(\d+)$/i.exec(b.id||""); if(m) max = Math.max(max, parseInt(m[1],10)); });
+    return "k" + String(max+1).padStart(2,"0");
+  }
+  function sheetBoxForm(boxId){
+    const b = boxId ? boxById(boxId) : null;
+    openSheet(h`
+      <h2>${b ? "Kiste bearbeiten" : "Neue Kiste"}</h2>
+      <p class="sub">${b ? "Die Nummer steht im QR-Code – nur ändern, wenn du das Etikett neu druckst." : "Die Nummer landet im QR-Code und auf dem Etikett."}</p>
+      <div class="grid2">
+        <div class="field">
+          <label class="field-label" for="f-boxid">Nummer</label>
+          <input id="f-boxid" value="${esc(b?b.id:nextBoxId())}" ${b?"disabled":""} autocapitalize="none">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-boxname">Kiste</label>
+          <input id="f-boxname" placeholder="z. B. Kiste 13" value="${esc(b?b.name:"")}">
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="f-boxdesc">Inhalt / Beschreibung</label>
+        <input id="f-boxdesc" placeholder="z. B. Audio Adapter" value="${esc(b?b.description||"":"")}">
+      </div>
+      <button class="btn btn-primary" data-act="box-save" data-id="${boxId||""}">${b?"Speichern":"Kiste anlegen"}</button>
+      ${b ? `<button class="btn btn-danger" style="width:100%;margin-top:8px;" data-act="box-delete" data-id="${boxId}">Kiste mit Inhalt löschen</button>` : ""}
+      <button class="btn btn-outline" style="width:100%;margin-top:8px;" data-act="sheet-close">Abbrechen</button>
+    `);
+  }
+
+  /* ---------- QR ---------- */
+  function baseUrl(){
+    return localGet("baseUrl") || (location.origin + location.pathname);
+  }
+  function boxUrl(boxId){
+    let base = baseUrl().split("#")[0].split("?")[0];
+    return base + "?kiste=" + encodeURIComponent(boxId);
+  }
+  function qrSrc(url, size){
+    return "https://api.qrserver.com/v1/create-qr-code/?size="+size+"x"+size+"&margin=0&data=" + encodeURIComponent(url);
+  }
+  function sheetQr(boxId){
+    const box = boxById(boxId); if(!box) return;
+    openSheet(h`
+      <h2>QR-Code · ${esc(String(box.id).toUpperCase())}</h2>
+      <p class="sub">${esc(box.name)}${box.description?" — "+esc(box.description):""}</p>
+      <div class="qr-box">
+        <img src="${qrSrc(boxUrl(box.id), 300)}" alt="QR-Code ${esc(box.name)}">
+        <p class="mono">${esc(boxUrl(box.id))}</p>
+      </div>
+      <p class="hint">Scannen mit der App oder direkt mit der Handykamera – beides öffnet diese Kiste.</p>
+      <button class="btn btn-outline" style="width:100%;margin-top:10px;" data-act="print-one" data-id="${box.id}">${ICONS.print} Dieses Etikett drucken</button>
+      <button class="btn btn-outline" style="width:100%;margin-top:8px;" data-act="sheet-close">Schliessen</button>
+    `);
+  }
+
+  /* ---------- Etiketten ---------- */
+  function sheetLabels(){
+    openSheet(h`
+      <h2>Etiketten drucken</h2>
+      <p class="sub">Zwei Etiketten pro Reihe auf A4 (88 × 54 mm), mit Nummer, Inhalt und QR-Code.</p>
+      <div class="btn-row" style="margin-bottom:12px;">
+        <button class="btn btn-outline btn-sm" data-act="label-all">Alle auswählen</button>
+        <button class="btn btn-outline btn-sm" data-act="label-none">Auswahl leeren</button>
+      </div>
+      ${state.boxes.map(b=>h`
+        <label class="lbl-pick">
+          <input type="checkbox" data-label="${b.id}" ${state.labelSel[b.id]?"checked":""}>
+          <span class="grow">${esc(String(b.id).toUpperCase())} · ${esc(b.name)}${b.description?" — "+esc(b.description):""}</span>
+        </label>`).join("")}
+      <button class="btn btn-primary" style="margin-top:12px;" data-act="label-print">${ICONS.print} Drucken</button>
+      <button class="btn btn-outline" style="width:100%;margin-top:8px;" data-act="sheet-close">Abbrechen</button>
+    `, true);
+  }
+  function printLabels(ids){
+    const boxes = state.boxes.filter(b=> ids.includes(b.id));
+    if(!boxes.length){ toast("Keine Kiste ausgewählt.","bad"); return; }
+    const area = document.getElementById("print-area");
+    area.innerHTML = boxes.map(b=>{
+      const its = itemsOfBox(b.id);
+      const cats = Array.from(new Set(its.map(i=>i.category)));
+      const list = (cats.length>1 ? cats : its.map(i=>i.name)).slice(0,18).join(" · ");
+      return `
+        <div class="print-label">
+          <div class="pl-txt">
+            <span class="pl-id">${esc(String(b.id).toUpperCase())}</span>
+            <div class="pl-name">${esc(b.name)}${b.description?" — "+esc(b.description):""}</div>
+            <div class="pl-list">${esc(list)}</div>
+            <div class="pl-foot">Scannen · Entnahme buchen · ${its.length} Positionen</div>
+          </div>
+          <img src="${qrSrc(boxUrl(b.id), 320)}" alt="">
+        </div>`;
+    }).join("");
+    const imgs = Array.from(area.querySelectorAll("img"));
+    let left = imgs.length;
+    const go = ()=>{ if(--left <= 0) setTimeout(()=>window.print(), 200); };
+    if(!imgs.length) return setTimeout(()=>window.print(), 100);
+    imgs.forEach(im=>{ if(im.complete) go(); else { im.onload = go; im.onerror = go; } });
+  }
+
+  /* ---------- Verbindung prüfen ---------- */
+  const RULES_TEXT = JSON.stringify({
+    rules: {
+      materiallager: {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        movements: { ".indexOn": ["ts"] }
       }
-    });
+    }
+  }, null, 2);
 
-    app.querySelectorAll("[data-select]").forEach(chk=>{
-      chk.addEventListener("change", ()=>{
-        const id = chk.getAttribute("data-select");
-        if(chk.checked){ state.selection[id] = 1; } else { delete state.selection[id]; }
-        render();
-      });
-    });
-    app.querySelectorAll("[data-qty]").forEach(inp=>{
-      inp.addEventListener("input", ()=>{
-        const id = inp.getAttribute("data-qty");
-        const max = parseInt(inp.getAttribute("max")||"999",10);
-        let v = parseInt(inp.value||"1",10);
-        if(isNaN(v) || v<1) v=1;
-        if(v>max) v=max;
-        state.selection[id] = v;
-      });
-    });
+  function withTimeout(promise, ms){
+    return Promise.race([
+      promise,
+      new Promise((_,rej)=> setTimeout(()=>rej(Object.assign(new Error("Zeitüberschreitung"), {code:"TIMEOUT"})), ms))
+    ]);
+  }
 
-    const confirmBtn = document.getElementById("confirmEntnahme");
-    if(confirmBtn) confirmBtn.addEventListener("click", async ()=>{
-      const entries = Object.entries(state.selection).filter(([id,qty])=> qty>0 && state.cables.some(c=>c.id===id && c.boxId===state.activeBoxId));
-      if(!entries.length) return;
-      confirmBtn.disabled = true; confirmBtn.textContent = "Wird gespeichert …";
-      try{
-        for(const [cableId, qty] of entries){ await recordMovement(cableId, "entnahme", qty, state.user); }
-        state.selection = {}; render();
-        showToast("Entnahme bestätigt · live gespeichert");
-      }catch(e){
-        console.error(e);
-        confirmBtn.disabled = false; confirmBtn.textContent = "Entnahme bestätigen";
-        showToast("Speichern fehlgeschlagen: " + friendlyFirebaseError(e));
-      }
-    });
+  async function runDiagnose(){
+    const out = [];
+    out.push({ok:true, title:"App-Version", txt: APP_VERSION});
+    out.push({ok: firebaseConfigured(), title:"Konfiguration",
+              txt: firebaseConfigured() ? "Projekt " + firebaseConfig.projectId : "In index.html fehlen die Firebase-Angaben."});
 
-    const search = document.getElementById("globalSearch");
-    if(search){
-      search.addEventListener("input", ()=>{
-        state.search = search.value;
-        const wasFocused = document.activeElement === search;
-        render();
-        if(wasFocused){ const el=document.getElementById("globalSearch"); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
-      });
+    if(!db || !auth){
+      out.push({ok:false, title:"Verbindung", txt:"Firebase konnte nicht gestartet werden.",
+                hint: state.error || "Seite neu laden."});
+      return out;
     }
 
-    const fc = document.getElementById("filterCategory");
-    if(fc) fc.addEventListener("change", ()=>{ state.filters.category = fc.value; render(); });
-    const fb = document.getElementById("filterBox");
-    if(fb) fb.addEventListener("change", ()=>{ state.filters.box = fb.value; render(); });
-    const fu = document.getElementById("filterUser");
-    if(fu) fu.addEventListener("change", ()=>{ state.filters.user = fu.value; render(); });
+    // 1. Anmeldung
+    try{
+      await withTimeout(signInAnonymously(auth), 12000);
+      state.authOk = true; state.authError = "";
+      out.push({ok:true, title:"Anonyme Anmeldung", txt:"funktioniert"});
+    }catch(e){
+      const code = e.code || e.message;
+      state.authOk = false; state.authError = code;
+      out.push({ok:false, title:"Anonyme Anmeldung", txt:String(code), hint: fbHint(code, e.message)});
+    }
 
-    const userInput = document.getElementById("userNameInput");
-    if(userInput) userInput.addEventListener("change", async ()=>{
-      state.user = userInput.value.trim();
+    // 2. Buchungen lesen – der Pfad, den es seit jeher gibt
+    try{
+      const snap = await withTimeout(get(ref(db, DB_ROOT + "/movements")), 12000);
+      const n = Object.keys(snap.val() || {}).length;
+      out.push({ok:true, title:"Buchungen lesen", txt: n + " Einträge im Verlauf"});
+    }catch(e){
+      const code = e.code || e.message;
+      out.push({ok:false, title:"Buchungen lesen", txt:String(code), hint: fbHint(code, e.message)});
+    }
+
+    // 3. Buchung senden – zuerst die echte Warteschlange
+    let writeOk = false, writeErr = "";
+    if(state.outbox.length){
+      const before = state.outbox.length;
+      await flushOutbox();
+      const done = before - state.outbox.length;
+      if(state.outbox.length === 0){
+        writeOk = true;
+        out.push({ok:true, title:"Buchung senden", txt: done + " wartende Buchung(en) sind durchgegangen"});
+      }else{
+        writeErr = state.sendError || "abgelehnt";
+      }
+    }
+
+    // Wenn das nicht ging: herausfinden, woran es liegt
+    if(!writeOk){
+      const now = new Date();
+      const voll = {
+        cableId: PROBE_ID, type:"entnahme", qty:0, user: state.user || "",
+        date: now.toLocaleDateString("de-CH"),
+        time: now.toLocaleTimeString("de-CH", {hour:"2-digit", minute:"2-digit"}),
+        ts: Date.now(), serverTs: serverTimestamp()
+      };
+      const knapp = { cableId: PROBE_ID, type:"entnahme", qty:0 };
+
+      let vollOk = false, vollErr = "", knappOk = false, knappErr = "";
+      try{
+        const r = await withTimeout(push(ref(db, DB_ROOT + "/movements"), voll), 12000);
+        vollOk = true; try{ await remove(r); }catch(e){}
+      }catch(e){ vollErr = e.code || e.message; }
+
+      if(!vollOk){
+        try{
+          const r2 = await withTimeout(push(ref(db, DB_ROOT + "/movements"), knapp), 12000);
+          knappOk = true; try{ await remove(r2); }catch(e){}
+        }catch(e){ knappErr = e.code || e.message; }
+      }
+
+      if(vollOk){
+        state.sendError = "";
+        out.push({ok:true, title:"Buchung senden", txt:"Testbuchung im gewohnten Format gespeichert"});
+        if(writeErr){
+          out.push({ok:false, title:"Warteschlange", txt:"Ältere Buchungen wurden abgelehnt: " + writeErr,
+                    hint:"Diese stammen noch aus einer früheren App-Fassung mit zusätzlichen Feldern. Unter Einstellungen → Warteschlange verwerfen und neu buchen."});
+        }
+      }else if(knappOk){
+        out.push({ok:false, title:"Buchung senden", txt:"Nur mit reduziertem Inhalt möglich (" + vollErr + ")",
+                  hint:"Deine Regeln lassen bestimmte Felder nicht zu. Schick mir diese Zeile – dann passe ich das Format an. Erlaubt sind offenbar cableId, type und qty, abgelehnt wird eines der Felder user, date, time, ts oder serverTs."});
+      }else{
+        out.push({ok:false, title:"Buchung senden", txt: String(vollErr || writeErr),
+                  hint:"Die Regeln lassen unter materiallager/movements gar kein Schreiben zu. Regeln unten einsetzen und veröffentlichen."});
+      }
+    }
+
+    // 4. Katalog – nur für das Anlegen von Material nötig
+    let boxCount = null;
+    try{
+      const snap = await withTimeout(get(ref(db, DB_ROOT + "/catalog/boxes")), 12000);
+      boxCount = Object.keys(snap.val() || {}).length;
+      if(boxCount === 0){
+        await ensureCatalog();
+        out.push({ok:true, title:"Katalog", txt:"12 Kisten mit allem Material wurden angelegt"});
+      }else{
+        state.catalogDenied = false;
+        out.push({ok:true, title:"Katalog", txt: boxCount + " Kisten in der Datenbank"});
+      }
+    }catch(e){
+      const code = e.code || e.message;
+      state.catalogDenied = true;
+      out.push({ok:false, optional:true, title:"Katalog (optional)", txt:String(code),
+                hint:"Entnehmen und Auffüllen laufen trotzdem – die App nimmt dafür die eingebaute Materialliste. Nur das Anlegen von neuem Material in der App braucht die erweiterte Regel unten."});
+    }
+
+    return out;
+  }
+  function sheetDiagnose(results, running){
+    const rows = (results||[]).map(r=>`
+      <div class="movement-row">
+        <div class="mv-icon ${r.ok?"mv-in":(r.optional?"mv-fix":"mv-out")}" ${r.optional?'style="background:var(--warn-bg);color:var(--warn)"':""}>${r.ok?"✓":"!"}</div>
+        <div class="mv-main">
+          <div class="mv-title">${esc(r.title)}</div>
+          <div class="mv-meta">${esc(r.txt)}</div>
+          ${r.hint?`<div class="hint" style="color:${r.optional?"var(--warn)":"var(--danger)"};margin-top:5px;">${esc(r.hint)}</div>`:""}
+        </div>
+      </div>`).join("");
+    const denied = (results||[]).some(r=>!r.ok && /permission/i.test(String(r.txt)));
+    openSheet(`
+      <h2>Verbindung prüfen</h2>
+      <p class="sub">Testet Anmeldung, Lesen und Schreiben direkt auf deiner Datenbank.</p>
+      ${running ? emptyState("clock","Wird geprüft","Einen Moment.") : rows}
+      ${denied ? `
+        <div class="subhead"><h3>Diese Regeln einsetzen</h3></div>
+        <p class="hint" style="margin-top:0;">Firebase-Konsole → <b>Build → Realtime Database</b> → Reiter <b>Regeln</b> → alles ersetzen → <b>Veröffentlichen</b>. Nicht bei Firestore Database eintragen, das ist eine andere Datenbank.</p>
+        <textarea readonly id="rulesBox" rows="10" style="width:100%;font-family:var(--f-mono, monospace);font-size:12px;padding:10px;border:1.5px solid var(--line-strong);border-radius:8px;background:var(--panel);">${esc(RULES_TEXT)}</textarea>
+        <button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px;" data-act="copy-rules">Regeln kopieren</button>
+      ` : ""}
+      <button class="btn btn-primary" style="margin-top:14px;" data-act="diagnose-run">Nochmals prüfen</button>
+      <button class="btn btn-outline" style="width:100%;margin-top:8px;" data-act="sheet-close">Schliessen</button>
+    `, true);
+  }
+
+  /* ---------- Scanner ---------- */
+  let camStream = null, camStop = false, torchOn = false;
+  async function startScan(){
+    camStop = false; torchOn = false;
+    openSheet(h`
+      <h2>Kiste scannen</h2>
+      <p class="sub">QR-Code der Kiste in den Rahmen halten.</p>
+      <div class="cam-wrap">
+        <video id="cam" playsinline muted autoplay></video>
+        <div class="reticle"><i></i><i></i><i></i><i></i></div>
+        <button class="torch hide" id="torch" data-act="scan-torch" aria-pressed="false" aria-label="Licht">${ICONS.bolt}</button>
+        <div class="cam-note" id="camNote">Kamera startet …</div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="manualCode">Oder Nummer eingeben</label>
+        <input id="manualCode" placeholder="z. B. K01" autocapitalize="characters" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" data-act="manual-open">Kiste öffnen</button>
+      <button class="btn btn-outline" style="width:100%;margin-top:8px;" data-act="sheet-close">Abbrechen</button>
+    `, true, stopScan);
+
+    const video = document.getElementById("cam");
+    const note = document.getElementById("camNote");
+    try{
+      camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}, audio:false});
+      video.srcObject = camStream;
+      await video.play();
+      note.textContent = "Suche QR-Code …";
+      const track = camStream.getVideoTracks()[0];
+      if(track.getCapabilities && track.getCapabilities().torch){
+        document.getElementById("torch").classList.remove("hide");
+      }
+    }catch(e){
+      note.textContent = "Kein Kamerazugriff";
+      toast("Kamera nicht verfügbar – Nummer von Hand eingeben.","bad");
+      return;
+    }
+    if("BarcodeDetector" in window){
+      try{
+        const det = new window.BarcodeDetector({formats:["qr_code"]});
+        const tick = async ()=>{
+          if(camStop) return;
+          try{
+            const codes = await det.detect(video);
+            if(codes && codes[0] && codes[0].rawValue) return handleScan(codes[0].rawValue);
+          }catch(e){}
+          requestAnimationFrame(tick);
+        };
+        return requestAnimationFrame(tick);
+      }catch(e){}
+    }
+    try{ await loadScript("https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"); }
+    catch(e){ note.textContent = "Scanner offline – Nummer eingeben"; return; }
+    const cv = document.createElement("canvas");
+    const ctx = cv.getContext("2d", {willReadFrequently:true});
+    const tick = ()=>{
+      if(camStop) return;
+      if(video.readyState === video.HAVE_ENOUGH_DATA){
+        cv.width = video.videoWidth; cv.height = video.videoHeight;
+        ctx.drawImage(video,0,0,cv.width,cv.height);
+        const img = ctx.getImageData(0,0,cv.width,cv.height);
+        const res = window.jsQR(img.data, img.width, img.height, {inversionAttempts:"dontInvert"});
+        if(res && res.data) return handleScan(res.data);
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+  function stopScan(){
+    camStop = true;
+    if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream = null; }
+  }
+  async function toggleTorch(){
+    if(!camStream) return;
+    const track = camStream.getVideoTracks()[0];
+    torchOn = !torchOn;
+    try{
+      await track.applyConstraints({advanced:[{torch:torchOn}]});
+      document.getElementById("torch").setAttribute("aria-pressed", String(torchOn));
+    }catch(e){ toast("Licht wird von diesem Gerät nicht unterstützt."); }
+  }
+  function handleScan(text){
+    stopScan();
+    if(navigator.vibrate) navigator.vibrate([12,30,12]);
+    sheetCloseCb = null;
+    closeSheet();
+    setTimeout(()=>openByCode(text), 150);
+  }
+  function openByCode(text){
+    let code = String(text||"").trim();
+    try{
+      if(/^https?:/i.test(code)){
+        const u = new URL(code);
+        code = u.searchParams.get("kiste") || code;
+      }
+    }catch(e){}
+    code = code.replace(/^kiste[:=]/i,"").trim();
+    const norm = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+    const box = state.boxes.find(b=>norm(b.id)===norm(code))
+             || state.boxes.find(b=>norm(b.name)===norm(code));
+    if(box){
+      state.activeBoxId = box.id; state.view = "boxDetail"; state.boxCat = "";
+      state.selection = {}; state.search = "";
+      render();
+      window.scrollTo({top:0});
+    }else{
+      toast("Keine Kiste zu „"+code+"\u201C gefunden.","bad");
+    }
+  }
+
+  /* ---------- CSV ---------- */
+  function exportCsv(){
+    const rows = [["Datum","Zeit","Kiste","Material","Kategorie","Menge","Art","Person"]];
+    effectiveMovements().forEach(m=>{
+      const it = itemById(m.cableId) || {};
+      rows.push([
+        m.date||"", m.time||"",
+        m.boxName || (boxById(it.boxId)||{}).name || "",
+        m.name || it.name || "",
+        m.category || it.category || "",
+        movementDelta(m), m.type||"", m.user||""
+      ]);
+    });
+    const csv = rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\r\n");
+    const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "materiallager-verlauf.csv";
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  }
+
+  /* ================================================================
+     Buchen mit Rückmeldung
+     ================================================================ */
+  function book(itemId, mode, qty){
+    const it = itemById(itemId); if(!it) return;
+    const stock = currentStock(itemId);
+    if(mode === "entnahme" && qty > stock){
+      toast("Nur noch " + stock + " Stk. vorhanden.","bad");
+      return;
+    }
+    const mv = bookMovement(itemId, mode === "entnahme" ? "entnahme" : "rueckgabe", qty);
+    state.flash = itemId;
+    setTimeout(()=>{ if(state.flash === itemId){ state.flash = null; render(); } }, 700);
+    render();
+    const rest = currentStock(itemId);
+    const nachher = statusOf(it);
+    if(navigator.vibrate) navigator.vibrate(nachher.level === "crit" ? [16,40,16] : 16);
+    toast((mode==="entnahme"?"Entnommen: ":"Aufgefüllt: ") + qty + " × " + it.name + " · Bestand " + rest + " / " + nachher.target,
+      "", {label:"Rückgängig", fn:()=>{ undoMovement(mv).then(()=>{ invalidate(); render(); }); }});
+    if(mode==="entnahme" && nachher.level !== "ok"){
+      setTimeout(()=>toast(it.name + (nachher.level==="crit" ? " ist aufgebraucht" : " ist unter dem Mindestbestand") + " – nachfüllen: +" + nachher.need, "bad"), 900);
+    }
+  }
+
+  /* ================================================================
+     Ereignisse
+     ================================================================ */
+  let deferredPrompt = null;
+  window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); deferredPrompt = e; });
+
+  document.addEventListener("click", async (ev)=>{
+    const navEl = ev.target.closest("[data-nav]");
+    if(navEl){
+      const target = navEl.getAttribute("data-nav");
+      closeSheet();
+      state.view = target; state.search = ""; state.selection = {};
+      render(); window.scrollTo({top:0});
+      return;
+    }
+    const el = ev.target.closest("[data-act]");
+    if(!el) return;
+    const act = el.getAttribute("data-act");
+    const id = el.getAttribute("data-id");
+    const boxId = el.getAttribute("data-box");
+
+    switch(act){
+      case "sheet-close": closeSheet(); break;
+      case "scan": startScan(); break;
+      case "scan-torch": toggleTorch(); break;
+      case "manual-open": {
+        const v = (document.getElementById("manualCode")||{}).value;
+        if(v && v.trim()){ sheetCloseCb = null; stopScan(); closeSheet(); openByCode(v); }
+        break;
+      }
+      case "open-box":
+        state.activeBoxId = id; state.view = "boxDetail"; state.boxCat = "";
+        state.selection = {}; state.search = "";
+        render(); window.scrollTo({top:0});
+        break;
+      case "open-item":
+        state.activeItemId = id; state.view = "itemDetail";
+        render(); window.scrollTo({top:0});
+        break;
+      case "back-from-item": {
+        const it = itemById(state.activeItemId);
+        if(it && state.activeBoxId === it.boxId){ state.view = "boxDetail"; }
+        else { state.view = "cables"; }
+        render();
+        break;
+      }
+      case "take-one": book(id, "entnahme", 1); break;
+      case "sel-plus": case "sel-minus": {
+        const st = currentStock(id);
+        let v = state.selection[id] || 1;
+        v = act==="sel-plus" ? Math.min(st, v+1) : Math.max(1, v-1);
+        state.selection[id] = v; render();
+        break;
+      }
+      case "confirm-take": {
+        const entries = Object.entries(state.selection).filter(([iid,q])=> q>0 && itemById(iid));
+        if(!entries.length) break;
+        let count = 0;
+        entries.forEach(([iid,q])=>{
+          const stock = currentStock(iid);
+          const qty = Math.min(q, stock);
+          if(qty > 0){ bookMovement(iid, "entnahme", qty); count += qty; }
+        });
+        state.selection = {}; invalidate(); render();
+        if(navigator.vibrate) navigator.vibrate(24);
+        toast(count + " Stück entnommen · gespeichert");
+        break;
+      }
+      case "box-cat": state.boxCat = el.getAttribute("data-cat")||""; render(); break;
+      case "refill-mode": state.refillGroup = el.getAttribute("data-mode")==="kiste"; render(); break;
+      case "toggle-group": {
+        state.groupOpen[id] = state.groupOpen[id] === false ? true : false;
+        render(); break;
+      }
+      case "quick-refill": {
+        const n = Math.max(1, toInt(el.getAttribute("data-n"),1));
+        book(id, "auffuellen", n);
+        break;
+      }
+      case "filter-empty": {
+        state.filters = {box:"", category:"", user:"", status:"leer"};
+        state.view = "cables"; state.search = ""; render(); window.scrollTo({top:0});
+        break;
+      }
+      case "qty-sheet": sheetQty(id, el.getAttribute("data-mode")||"entnahme", el.getAttribute("data-preset")||1); break;
+      case "qty-plus": qtyVal++; document.getElementById("qtyVal").textContent = qtyVal; break;
+      case "qty-minus": qtyVal = Math.max(1, qtyVal-1); document.getElementById("qtyVal").textContent = qtyVal; break;
+      case "qty-set": qtyVal = toInt(el.getAttribute("data-n"),1); document.getElementById("qtyVal").textContent = qtyVal; break;
+      case "qty-book": {
+        const iid = qtyItemId, mode = qtyMode, q = qtyVal;
+        closeSheet();
+        book(iid, mode==="entnahme"?"entnahme":"auffuellen", q);
+        break;
+      }
+
+      case "item-form": sheetItemForm(boxId || (itemById(id)||{}).boxId, id||null); break;
+      case "add-material": {
+        if(state.boxes.length === 1) sheetItemForm(state.boxes[0].id, null);
+        else sheetPickBox();
+        break;
+      }
+      case "pick-box": sheetItemForm(id, null); break;
+      case "item-save": {
+        const name = (document.getElementById("f-name").value||"").trim();
+        if(!name){ toast("Bezeichnung fehlt.","bad"); break; }
+        let cat = document.getElementById("f-cat").value;
+        if(cat === "__new"){ cat = (document.getElementById("f-cat-new").value||"").trim(); }
+        if(!cat){ toast("Kategorie fehlt.","bad"); break; }
+        const qty = Math.max(0, toInt(document.getElementById("f-qty").value,0));
+        const min = Math.max(1, toInt(document.getElementById("f-min").value,1));
+        const target = Math.max(min, toInt((document.getElementById("f-target")||{}).value, qty || 1));
+        const desc = (document.getElementById("f-desc").value||"").trim();
+        const zielBox = (document.getElementById("f-box")||{}).value || boxId;
+        el.disabled = true; el.textContent = "Wird gespeichert …";
+        try{
+          if(id){
+            const before = currentStock(id);
+            await saveItem(null, id, {name, category:cat, minStock:min, targetStock:target, description:desc, boxId:zielBox});
+            if(qty !== before){
+              const diff = qty - before;
+              bookMovement(id, diff > 0 ? "rueckgabe" : "entnahme", Math.abs(diff));
+            }
+            toast("Gespeichert.");
+          }else{
+            await saveItem(zielBox, null, {name, category:cat, initialStock:qty, minStock:min, targetStock:target, description:desc});
+            toast(name + " angelegt.");
+          }
+          closeSheet(); invalidate(); render();
+        }catch(e){
+          el.disabled = false; el.textContent = "Nochmals versuchen";
+          toast("Speichern fehlgeschlagen: " + (e.message||e), "bad");
+        }
+        break;
+      }
+      case "item-delete": {
+        const it = itemById(id);
+        if(!it) break;
+        if(!confirm('"'+it.name+'" wirklich aus der Kiste löschen? Der Verlauf bleibt erhalten.')) break;
+        try{
+          await deleteItem(id);
+          closeSheet();
+          if(state.view==="itemDetail"){ state.view = "boxDetail"; state.activeBoxId = it.boxId; }
+          render(); toast("Gelöscht.");
+        }catch(e){ toast("Löschen fehlgeschlagen: " + (e.message||e), "bad"); }
+        break;
+      }
+
+      case "box-form": sheetBoxForm(id||null); break;
+      case "box-save": {
+        const name = (document.getElementById("f-boxname").value||"").trim();
+        const desc = (document.getElementById("f-boxdesc").value||"").trim();
+        if(!name){ toast("Bezeichnung fehlt.","bad"); break; }
+        try{
+          if(id){
+            await saveBox(id, {name, description:desc}, false);
+            toast("Kiste gespeichert.");
+          }else{
+            const newIdVal = (document.getElementById("f-boxid").value||"").trim().toLowerCase().replace(/[^a-z0-9_-]/g,"");
+            if(!newIdVal){ toast("Nummer fehlt.","bad"); break; }
+            if(boxById(newIdVal)){ toast("Nummer "+newIdVal.toUpperCase()+" ist schon vergeben.","bad"); break; }
+            await saveBox(newIdVal, {name, description:desc}, true);
+            state.activeBoxId = newIdVal; state.view = "boxDetail";
+            toast("Kiste " + newIdVal.toUpperCase() + " angelegt.");
+          }
+          closeSheet(); render();
+        }catch(e){ toast("Speichern fehlgeschlagen: " + (e.message||e), "bad"); }
+        break;
+      }
+      case "box-delete": {
+        const b = boxById(id); if(!b) break;
+        if(!confirm("Kiste " + b.name + " inklusive allem Material löschen?")) break;
+        try{
+          await deleteBox(id);
+          closeSheet(); state.view = "boxes"; render(); toast("Kiste gelöscht.");
+        }catch(e){ toast("Löschen fehlgeschlagen: " + (e.message||e), "bad"); }
+        break;
+      }
+
+      case "diagnose": case "diagnose-run": {
+        sheetDiagnose(null, true);
+        state.error = ""; state.errorCode = "";
+        const res = await runDiagnose();
+        state.diag = res;
+        if(res.every(r=>r.ok)){ state.authError = ""; state.error = ""; state.errorCode = ""; }
+        sheetDiagnose(res, false);
+        render();
+        break;
+      }
+      case "drop-queue": {
+        if(!confirm(state.outbox.length + " wartende Buchung(en) endgültig verwerfen? Die Bestände zählen sie dann nicht mehr mit.")) break;
+        state.outbox = []; state.sendError = ""; saveOutbox(); invalidate();
+        closeSheet(); render(); toast("Warteschlange geleert.");
+        break;
+      }
+      case "send-now": {
+        state.sendError = "";
+        render();
+        await flushOutbox();
+        toast(state.outbox.length ? state.outbox.length + " Buchung(en) warten weiterhin." : "Alles gesendet.");
+        break;
+      }
+      case "copy-rules": {
+        try{
+          await navigator.clipboard.writeText(RULES_TEXT);
+          toast("Regeln kopiert – in Firebase einfügen und veröffentlichen.");
+        }catch(e){
+          const box = document.getElementById("rulesBox");
+          if(box){ box.focus(); box.select && box.select(); }
+          toast("Bitte den Text von Hand markieren und kopieren.","bad");
+        }
+        break;
+      }
+      case "force-update": forceUpdate(); break;
+      case "show-qr": sheetQr(id); break;
+      case "labels": sheetLabels(); break;
+      case "label-all": state.boxes.forEach(b=>state.labelSel[b.id]=true); sheetLabels(); break;
+      case "label-none": state.labelSel = {}; sheetLabels(); break;
+      case "label-print": {
+        const ids = Object.keys(state.labelSel).filter(k=>state.labelSel[k]);
+        closeSheet();
+        printLabels(ids.length ? ids : state.boxes.map(b=>b.id));
+        break;
+      }
+      case "print-one": closeSheet(); printLabels([id]); break;
+
+      case "save-baseurl": {
+        const v = (document.getElementById("baseUrlInput").value||"").trim();
+        localSet("baseUrl", v);
+        toast("Adresse gespeichert – Etiketten neu drucken.");
+        break;
+      }
+      case "install":
+        if(deferredPrompt){ deferredPrompt.prompt(); deferredPrompt = null; }
+        break;
+      case "export-csv": exportCsv(); break;
+      case "reset-history": {
+        if(!requireLive()) break;
+        if(!confirm("Wirklich den kompletten Verlauf für ALLE Geräte löschen? Die Bestände starten dann wieder beim erfassten Ausgangswert.")) break;
+        try{
+          await remove(ref(db, DB_ROOT + "/movements"));
+          state.movements = []; state.outbox = []; saveOutbox(); invalidate(); render();
+          toast("Verlauf zurückgesetzt.");
+        }catch(e){ toast("Zurücksetzen fehlgeschlagen: " + (e.message||e), "bad"); }
+        break;
+      }
+    }
+  });
+
+  document.addEventListener("change", (ev)=>{
+    const t = ev.target;
+    if(t.matches("[data-pick]")){
+      const iid = t.getAttribute("data-pick");
+      if(t.checked) state.selection[iid] = state.selection[iid] || 1;
+      else delete state.selection[iid];
+      render();
+      return;
+    }
+    if(t.matches("[data-label]")){
+      const bid = t.getAttribute("data-label");
+      if(t.checked) state.labelSel[bid] = true; else delete state.labelSel[bid];
+      return;
+    }
+    if(t.id === "f-target"){
+      const minEl = document.getElementById("f-min");
+      if(minEl && !minEl.dataset.touched) minEl.value = suggestMin(toInt(t.value,1));
+      return;
+    }
+    if(t.id === "f-min"){ t.dataset.touched = "1"; return; }
+    if(t.id === "f-cat"){
+      const extra = document.getElementById("f-cat-new");
+      if(extra){ extra.classList.toggle("hide", t.value !== "__new"); if(t.value === "__new") extra.focus(); }
+      return;
+    }
+    if(t.id === "filterStatus"){ state.filters.status = t.value; render(); return; }
+    if(t.id === "filterCategory"){ state.filters.category = t.value; render(); return; }
+    if(t.id === "filterBox"){ state.filters.box = t.value; render(); return; }
+    if(t.id === "filterUser"){ state.filters.user = t.value; render(); return; }
+    if(t.id === "userNameInput"){
+      state.user = t.value.trim();
       localSet("current-user", state.user);
-      showToast("Name gespeichert");
-    });
-
-  }
-
-  async function init(){
-    loadBoxesAndCables();
-    state.user = localGet("current-user") || "";
-
-    const params = new URLSearchParams(location.search);
-    const kiste = params.get("kiste");
-    if(kiste && state.boxes.some(b=>b.id===kiste)){
-      state.activeBoxId = kiste; state.view = "boxDetail";
+      toast(state.user ? "Name gespeichert: " + state.user : "Name entfernt.");
+      return;
     }
+  });
 
-    // UI bereits anzeigen, damit bei fehlender Konfiguration eine klare Meldung erscheint.
+  let searchTimer = null;
+  document.addEventListener("input", (ev)=>{
+    const t = ev.target;
+    if(t.id === "f-target"){
+      const minEl = document.getElementById("f-min");
+      if(minEl && !minEl.dataset.touched) minEl.value = suggestMin(toInt(t.value,1));
+      return;
+    }
+    if(t.id === "f-min"){ t.dataset.touched = "1"; return; }
+    if(t.id === "globalSearch"){
+      state.search = t.value;
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(render, 140);   // erst tippen, dann neu zeichnen
+      return;
+    }
+    if(t.matches("[data-qty]")){
+      const iid = t.getAttribute("data-qty");
+      const max = currentStock(iid);
+      let v = toInt(t.value,1);
+      if(v < 1) v = 1;
+      if(v > max) { v = max; t.value = String(max); }
+      state.selection[iid] = v;
+      return;
+    }
+  });
+
+  document.addEventListener("keydown", e=>{ if(e.key === "Escape") closeSheet(); });
+
+  /* ================================================================
+     Start
+     ================================================================ */
+  async function init(){
+    loadFromCache();
+    state.user = localGet("current-user") || "";
     state.ready = true;
     render();
 
+    const params = new URLSearchParams(location.search);
+    const kiste = params.get("kiste");
+    if(kiste) setTimeout(()=>openByCode(kiste), 60);
+
     if(!firebaseConfigured()){
-      showToast("Firebase-Key fehlt. GitHub Secret FIREBASE_WEB_API_KEY prüfen.");
+      toast("Firebase nicht eingerichtet – Konfiguration in index.html eintragen.","bad");
       return;
     }
-
     try{
       await initFirebase();
-      await syncMovements();
       render();
-      showToast("Firebase verbunden · Live-Synchronisierung aktiv");
+      flushOutbox();
     }catch(e){
-      console.error("Firebase initialization failed", e);
-      state.firebaseError = friendlyFirebaseError(e);
+      console.error("Firebase", e);
+      state.error = e.message || String(e);
       state.online = false;
       render();
-      showToast("Firebase-Verbindung fehlgeschlagen: " + state.firebaseError);
+      toast("Keine Verbindung zu Firebase: " + state.error, "bad");
     }
+  }
+
+  if(navigator.serviceWorker && location.protocol.indexOf("http") === 0){
+    let reloadedOnce = false;
+    navigator.serviceWorker.addEventListener("controllerchange", ()=>{
+      if(reloadedOnce) return;
+      reloadedOnce = true;
+      location.reload();          // neue Fassung ist da – einmal sauber neu starten
+    });
+    window.addEventListener("load", ()=>{
+      navigator.serviceWorker.register("./sw.js", {updateViaCache:"none"})
+        .then(reg=>{ reg.update(); })
+        .catch(()=>{});
+    });
+  }
+
+  /* Notbremse, falls trotzdem eine alte Fassung hängen bleibt */
+  async function forceUpdate(){
+    try{
+      if(navigator.serviceWorker){
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r=>r.unregister()));
+      }
+      if(window.caches){
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k=>caches.delete(k)));
+      }
+    }catch(e){}
+    location.href = location.pathname + "?frisch=" + Date.now();
   }
 
   init();
