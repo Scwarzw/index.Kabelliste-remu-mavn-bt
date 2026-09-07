@@ -6,7 +6,7 @@
 <title>Materiallager</title>
 <meta name="description" content="Material im Servicefahrzeug scannen, entnehmen und live nachverfolgen.">
 <meta name="theme-color" content="#090B0F">
-<meta name="app-version" content="3.5">
+<meta name="app-version" content="3.6">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -542,6 +542,36 @@
   .btn-outline{border-color:transparent; background:var(--surface-2);}
   .take-btn{border-color:transparent;}
 
+
+  /* ---- Artikelbild ---- */
+  .img-block{display:flex; align-items:center; gap:14px; background:var(--surface); border-radius:16px;
+    padding:12px; margin-bottom:14px; box-shadow:var(--shadow-1);}
+  .img-thumb{width:82px; height:82px; flex:none; border-radius:12px; overflow:hidden; background:var(--surface-3);
+    padding:0; transition:transform .12s;}
+  .img-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+  .img-thumb:active{transform:scale(.96);}
+  .img-actions{display:flex; flex-direction:column; gap:8px; flex:1;}
+  .img-actions .btn{width:100%;}
+  .img-add{display:flex; align-items:center; justify-content:center; gap:10px; width:100%; padding:16px;
+    border:1px dashed var(--line-2); border-radius:16px; color:var(--muted); font-size:13.5px; font-weight:600;
+    margin-bottom:14px; transition:background .15s, color .15s;}
+  .img-add svg{width:19px; height:19px; stroke:currentColor; fill:none;}
+  .img-add:hover{background:var(--surface); color:var(--text);}
+  .img-busy{display:flex; align-items:center; gap:12px; padding:16px; font-size:13.5px; color:var(--muted);}
+  .spinner{width:17px; height:17px; border-radius:50%; border:2px solid var(--line-2);
+    border-top-color:var(--accent); animation:spin .7s linear infinite; flex:none;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .row-thumb{width:38px; height:38px; flex:none; border-radius:9px; object-fit:cover; background:var(--surface-3);}
+
+  #lightbox{position:fixed; inset:0; z-index:90; display:none; align-items:center; justify-content:center;
+    flex-direction:column; gap:14px; padding:24px; background:rgba(5,7,10,.9); backdrop-filter:blur(6px);}
+  #lightbox.open{display:flex; animation:fade .2s ease;}
+  #lightbox img{max-width:100%; max-height:78vh; border-radius:14px; object-fit:contain; box-shadow:var(--shadow-2);}
+  #lightbox p{margin:0; font-size:13.5px; color:var(--muted); text-align:center;}
+  .lb-close{position:absolute; top:calc(env(safe-area-inset-top,0px) + 14px); right:16px; width:42px; height:42px;
+    border-radius:13px; background:var(--surface-2); display:flex; align-items:center; justify-content:center;}
+  .lb-close svg{width:19px; height:19px; stroke:var(--text); fill:none;}
+
 </style>
 </head>
 <body>
@@ -550,11 +580,13 @@
   <div class="backdrop" data-act="sheet-close"></div>
   <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
 </div>
+<div id="lightbox" role="dialog" aria-modal="true"></div>
 <div id="print-area"></div>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import { getDatabase, ref, get, set, update, remove, push, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-storage.js";
 
 (function(){
   "use strict";
@@ -572,11 +604,11 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
     appId: "1:934985638005:web:fd330a5ca3eb335580983c"
   };
 
-  const APP_VERSION = "3.5";
+  const APP_VERSION = "3.6";
   const DB_ROOT = "materiallager";
   const PROBE_ID = "_pruefung";
   const LOCAL_PREFIX = "materiallager:device:v3:";
-  let firebaseApp = null, db = null, auth = null;
+  let firebaseApp = null, db = null, auth = null, storage = null;
 
   function firebaseConfigured(){
     return firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("HIER_") &&
@@ -761,7 +793,8 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
     ready: false, firebaseReady: false, online: false, error: "",
     catalogFromCache: true,
     authOk: false, authError: "", errorCode: "", sendError: "", diag: null, diagRunning: false,
-    connKnown: false, catalogDenied: false, flash: null, groupOpen: {}, refillGroup: false, boxCat: ""
+    connKnown: false, catalogDenied: false, flash: null, groupOpen: {}, refillGroup: false, boxCat: "",
+    uploading: null
   };
 
   const boxById  = id => state.boxes.find(b=>b.id===id);
@@ -853,6 +886,8 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
     firebaseApp = initializeApp(firebaseConfig);
     db = getDatabase(firebaseApp);
     auth = getAuth(firebaseApp);
+    try{ storage = getStorage(firebaseApp); }
+    catch(e){ storage = null; console.warn("Storage nicht verfügbar", e); }
 
     // Anmeldung darf scheitern, ohne dass die ganze App stehen bleibt.
     try{
@@ -1063,6 +1098,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
   }
   async function deleteItem(itemId){
     if(!requireLive()) return;
+    await bildLoeschen(itemId, true);   // verwaiste Datei im Storage vermeiden
     await remove(ref(db, DB_ROOT + "/catalog/items/" + itemId));
   }
   async function saveBox(boxId, data, isNew){
@@ -1077,10 +1113,168 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
   }
   async function deleteBox(boxId){
     if(!requireLive()) return;
+    for(const i of itemsOfBox(boxId)){
+      if(i.image) { try{ await bildLoeschen(i.id, true); }catch(e){} }
+    }
     const updates = {};
     itemsOfBox(boxId).forEach(i=>{ updates["catalog/items/" + i.id] = null; });
     updates["catalog/boxes/" + boxId] = null;
     await update(ref(db, DB_ROOT), updates);
+  }
+
+  /* ================================================================
+     Artikelbild — genau ein Bild pro Artikel
+     Storage-Pfad: service-material/articles/{artikelId}/image.jpg
+     Referenz im Artikel: image = { path, url, name, updatedAt }
+     ================================================================ */
+  const BILD_TYPEN = ["image/jpeg","image/jpg","image/png","image/webp"];
+  const BILD_MAX_MB = 8;
+  const bildPfad = itemId => "service-material/articles/" + itemId + "/image.jpg";
+
+  /* Vor dem Hochladen verkleinern – spart Datenvolumen im Fahrzeug. */
+  function bildVerkleinern(file, maxKante){
+    return new Promise((res, rej)=>{
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = ()=>{
+        URL.revokeObjectURL(url);
+        let {width:w, height:hh} = img;
+        const f = Math.min(1, maxKante / Math.max(w, hh));
+        w = Math.round(w * f); hh = Math.round(hh * f);
+        const cv = document.createElement("canvas");
+        cv.width = w; cv.height = hh;
+        cv.getContext("2d").drawImage(img, 0, 0, w, hh);
+        cv.toBlob(b => b ? res(b) : rej(new Error("Bild konnte nicht verarbeitet werden")), "image/jpeg", 0.82);
+      };
+      img.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error("Bild konnte nicht gelesen werden")); };
+      img.src = url;
+    });
+  }
+
+  function bildWaehlen(itemId){
+    if(state.uploading) return;
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = "image/jpeg,image/png,image/webp";
+    inp.style.display = "none";
+    inp.addEventListener("change", ()=>{
+      const f = inp.files && inp.files[0];
+      inp.remove();
+      if(f) bildHochladen(itemId, f);
+    });
+    document.body.appendChild(inp);
+    inp.click();
+  }
+
+  async function bildHochladen(itemId, file){
+    const it = itemById(itemId);
+    if(!it){ toast("Der Artikel existiert nicht mehr.","bad"); return; }
+    if(BILD_TYPEN.indexOf(String(file.type).toLowerCase()) < 0){
+      toast("Nur JPG, PNG oder WEBP möglich.","bad"); return;
+    }
+    if(file.size > BILD_MAX_MB * 1024 * 1024){
+      toast("Das Bild ist grösser als " + BILD_MAX_MB + " MB.","bad"); return;
+    }
+    if(!storage){ toast("Firebase Storage ist nicht verfügbar.","bad"); return; }
+    if(!requireLive()) return;
+    if(state.uploading) return;
+
+    state.uploading = itemId; render();
+    const altPfad = it.image && it.image.path;
+    try{
+      const blob = await bildVerkleinern(file, 1400);
+      const pfad = bildPfad(itemId);
+      const ziel = sRef(storage, pfad);
+      await uploadBytes(ziel, blob, {contentType:"image/jpeg", cacheControl:"public,max-age=86400"});
+      const url = await getDownloadURL(ziel);
+
+      if(!itemById(itemId)) throw new Error("Der Artikel wurde zwischenzeitlich gelöscht.");
+      await update(ref(db, DB_ROOT + "/catalog/items/" + itemId), {
+        image: { path: pfad, url: url, name: file.name || "image.jpg", updatedAt: Date.now() }
+      });
+
+      // Ein anderer alter Pfad darf nicht liegen bleiben.
+      if(altPfad && altPfad !== pfad){
+        try{ await deleteObject(sRef(storage, altPfad)); }catch(e){}
+      }
+      if(navigator.vibrate) navigator.vibrate(16);
+      toast("Bild gespeichert.");
+    }catch(e){
+      console.error("Bild-Upload", e);
+      toast("Bild nicht gespeichert: " + (e.code || e.message || e), "bad");
+    }finally{
+      state.uploading = null; render();
+    }
+  }
+
+  async function bildLoeschen(itemId, still){
+    const it = itemById(itemId);
+    const bild = it && it.image;
+    if(!bild) return;
+    if(!still){
+      if(!confirm("Bild von \"" + it.name + "\" wirklich löschen?")) return;
+      if(!requireLive()) return;
+      state.uploading = itemId; render();
+    }
+    try{
+      if(storage && bild.path){
+        try{ await deleteObject(sRef(storage, bild.path)); }
+        catch(e){ if(String(e.code||"").indexOf("object-not-found") < 0) throw e; }
+      }
+      if(!still && db){
+        await update(ref(db, DB_ROOT + "/catalog/items/" + itemId), { image: null });
+        toast("Bild gelöscht.");
+      }
+    }catch(e){
+      console.error("Bild löschen", e);
+      if(!still) toast("Bild konnte nicht gelöscht werden: " + (e.code || e.message || e), "bad");
+    }finally{
+      if(!still){ state.uploading = null; render(); }
+    }
+  }
+
+  function bildBlock(it){
+    const laeuft = state.uploading === it.id;
+    if(laeuft){
+      return h`<div class="img-block"><div class="img-busy"><span class="spinner"></span>Bild wird verarbeitet …</div></div>`;
+    }
+    if(it.image && it.image.url){
+      return h`
+        <div class="img-block">
+          <button class="img-thumb" data-act="img-open" data-id="${it.id}" aria-label="Bild vergrössern">
+            <img src="${esc(it.image.url)}" alt="${esc(it.name)}" loading="lazy">
+          </button>
+          <div class="img-actions">
+            <button class="btn btn-outline btn-sm" data-act="img-pick" data-id="${it.id}">Bild ersetzen</button>
+            <button class="btn btn-outline btn-sm" data-act="img-delete" data-id="${it.id}">Bild löschen</button>
+          </div>
+        </div>`;
+    }
+    return h`
+      <button class="img-add" data-act="img-pick" data-id="${it.id}">
+        ${ICONS.camera}<span>Bild hinzufügen</span>
+      </button>`;
+  }
+
+  function bildGross(itemId){
+    const it = itemById(itemId);
+    if(!it || !it.image || !it.image.url) return;
+    const lb = document.getElementById("lightbox");
+    lb.innerHTML = `
+      <button class="lb-close" data-act="img-close" aria-label="Schliessen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <img src="${esc(it.image.url)}" alt="${esc(it.name)}">
+      <p>${esc(it.name)}</p>`;
+    lb.classList.add("open");
+    document.body.style.overflow = "hidden";
+  }
+  function bildGrossZu(){
+    const lb = document.getElementById("lightbox");
+    if(!lb || !lb.classList.contains("open")) return;
+    lb.classList.remove("open");
+    lb.innerHTML = "";
+    if(!sheetOpen) document.body.style.overflow = "";
   }
 
   /* ================================================================
@@ -1104,6 +1298,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
     check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
     clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     alert:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 17v.01"/><circle cx="12" cy="12" r="9"/></svg>',
+    camera:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.4"/></svg>',
     chevron:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
     inbox:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5 5h14l2 8v6H3v-6z"/></svg>'
   };
@@ -1157,6 +1352,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
       <div class="cable-row lv-${st.level}${picked?" picked":""}${flash}">
         <div class="row-main">
           ${opts.pick ? `<input type="checkbox" class="pick-box" data-pick="${it.id}" ${picked?"checked":""} ${st.stock<=0?"disabled":""} aria-label="${esc(it.name)} auswählen">` : ""}
+          ${it.image && it.image.url ? `<img class="row-thumb" src="${esc(it.image.url)}" alt="" loading="lazy">` : ""}
           <button class="grow" data-act="open-item" data-id="${it.id}">
             <p class="cable-name">${esc(it.name)}</p>
             <span class="cable-sub">
@@ -1526,6 +1722,8 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
       <div class="eyebrow">${esc(it.category)}${box?" · "+esc(box.name):""}</div>
       <h2 class="section-title">${esc(it.name)}</h2>
       ${it.description ? `<p class="lead">${esc(it.description)}</p>` : ""}
+
+      ${bildBlock(it)}
 
       <div class="detail-stock lv-${st.level}">
         <div class="ds-top">
@@ -2333,6 +2531,8 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
   window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); deferredPrompt = e; });
 
   document.addEventListener("click", async (ev)=>{
+    const lb = document.getElementById("lightbox");
+    if(lb && lb.classList.contains("open") && ev.target === lb){ bildGrossZu(); return; }
     const navEl = ev.target.closest("[data-nav]");
     if(navEl){
       const target = navEl.getAttribute("data-nav");
@@ -2421,6 +2621,10 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
         break;
       }
 
+      case "img-pick": bildWaehlen(id); break;
+      case "img-delete": bildLoeschen(id, false); break;
+      case "img-open": bildGross(id); break;
+      case "img-close": bildGrossZu(); break;
       case "item-form": sheetItemForm(boxId || (itemById(id)||{}).boxId, id||null); break;
       case "add-material": {
         if(state.boxes.length === 1) sheetItemForm(state.boxes[0].id, null);
@@ -2637,7 +2841,12 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
     }
   });
 
-  document.addEventListener("keydown", e=>{ if(e.key === "Escape") closeSheet(); });
+  document.addEventListener("keydown", e=>{
+    if(e.key !== "Escape") return;
+    const lb = document.getElementById("lightbox");
+    if(lb && lb.classList.contains("open")) bildGrossZu();
+    else closeSheet();
+  });
 
   /* ================================================================
      Start
