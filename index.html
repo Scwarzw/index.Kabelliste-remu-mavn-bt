@@ -6,7 +6,7 @@
 <title>Materiallager</title>
 <meta name="description" content="Material im Servicefahrzeug scannen, entnehmen und live nachverfolgen.">
 <meta name="theme-color" content="#090B0F">
-<meta name="app-version" content="3.6">
+<meta name="app-version" content="3.7">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -604,7 +604,7 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
     appId: "1:934985638005:web:fd330a5ca3eb335580983c"
   };
 
-  const APP_VERSION = "3.6";
+  const APP_VERSION = "3.7";
   const DB_ROOT = "materiallager";
   const PROBE_ID = "_pruefung";
   const LOCAL_PREFIX = "materiallager:device:v3:";
@@ -794,7 +794,7 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
     catalogFromCache: true,
     authOk: false, authError: "", errorCode: "", sendError: "", diag: null, diagRunning: false,
     connKnown: false, catalogDenied: false, flash: null, groupOpen: {}, refillGroup: false, boxCat: "",
-    uploading: null
+    uploading: null, imageError: ""
   };
 
   const boxById  = id => state.boxes.find(b=>b.id===id);
@@ -886,8 +886,12 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
     firebaseApp = initializeApp(firebaseConfig);
     db = getDatabase(firebaseApp);
     auth = getAuth(firebaseApp);
-    try{ storage = getStorage(firebaseApp); }
-    catch(e){ storage = null; console.warn("Storage nicht verfügbar", e); }
+    try{
+      storage = getStorage(firebaseApp);
+      // Standard sind bis zu 10 Minuten stille Wiederholversuche – viel zu lang.
+      storage.maxUploadRetryTime = 20000;
+      storage.maxOperationRetryTime = 15000;
+    }catch(e){ storage = null; console.warn("Storage nicht verfügbar", e); }
 
     // Anmeldung darf scheitern, ohne dass die ganze App stehen bleibt.
     try{
@@ -1151,6 +1155,19 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
     });
   }
 
+  function bildFehler(e){
+    const code = String((e && e.code) || (e && e.message) || e).toLowerCase();
+    if(code.indexOf("unauthorized") >= 0 || code.indexOf("permission") >= 0)
+      return "Die Storage-Regeln lassen das Speichern nicht zu. Firebase-Konsole → Build → Storage → Reiter Regeln → Inhalt von storage.rules einsetzen und veröffentlichen.";
+    if(code.indexOf("retry-limit") >= 0 || code.indexOf("zeitüber") >= 0 || code.indexOf("timeout") >= 0 || code.indexOf("unknown") >= 0)
+      return "Der Speicher antwortet nicht. Sehr wahrscheinlich ist Firebase Storage noch nicht aktiviert: Konsole → Build → Storage → Jetzt starten. Danach die Regeln veröffentlichen.";
+    if(code.indexOf("bucket-not-found") >= 0 || code.indexOf("project-not-found") >= 0)
+      return "Der Speicherordner des Projekts existiert noch nicht. Konsole → Build → Storage → Jetzt starten.";
+    if(code.indexOf("quota") >= 0) return "Das Speicherkontingent des Projekts ist erschöpft.";
+    if(code.indexOf("network") >= 0 || code.indexOf("offline") >= 0) return "Keine Verbindung – Bild später nochmals hochladen.";
+    return "";
+  }
+
   function bildWaehlen(itemId){
     if(state.uploading) return;
     const inp = document.createElement("input");
@@ -1179,19 +1196,19 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
     if(!requireLive()) return;
     if(state.uploading) return;
 
-    state.uploading = itemId; render();
+    state.uploading = itemId; state.imageError = ""; render();
     const altPfad = it.image && it.image.path;
     try{
-      const blob = await bildVerkleinern(file, 1400);
+      const blob = await withTimeout(bildVerkleinern(file, 1400), 20000);
       const pfad = bildPfad(itemId);
       const ziel = sRef(storage, pfad);
-      await uploadBytes(ziel, blob, {contentType:"image/jpeg", cacheControl:"public,max-age=86400"});
-      const url = await getDownloadURL(ziel);
+      await withTimeout(uploadBytes(ziel, blob, {contentType:"image/jpeg", cacheControl:"public,max-age=86400"}), 30000);
+      const url = await withTimeout(getDownloadURL(ziel), 15000);
 
       if(!itemById(itemId)) throw new Error("Der Artikel wurde zwischenzeitlich gelöscht.");
-      await update(ref(db, DB_ROOT + "/catalog/items/" + itemId), {
+      await withTimeout(update(ref(db, DB_ROOT + "/catalog/items/" + itemId), {
         image: { path: pfad, url: url, name: file.name || "image.jpg", updatedAt: Date.now() }
-      });
+      }), 15000);
 
       // Ein anderer alter Pfad darf nicht liegen bleiben.
       if(altPfad && altPfad !== pfad){
@@ -1201,7 +1218,9 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
       toast("Bild gespeichert.");
     }catch(e){
       console.error("Bild-Upload", e);
-      toast("Bild nicht gespeichert: " + (e.code || e.message || e), "bad");
+      const hinweis = bildFehler(e) || ("Bild nicht gespeichert: " + (e.code || e.message || e));
+      state.imageError = hinweis;
+      toast(hinweis, "bad");
     }finally{
       state.uploading = null; render();
     }
@@ -1218,16 +1237,16 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
     }
     try{
       if(storage && bild.path){
-        try{ await deleteObject(sRef(storage, bild.path)); }
+        try{ await withTimeout(deleteObject(sRef(storage, bild.path)), 15000); }
         catch(e){ if(String(e.code||"").indexOf("object-not-found") < 0) throw e; }
       }
       if(!still && db){
-        await update(ref(db, DB_ROOT + "/catalog/items/" + itemId), { image: null });
+        await withTimeout(update(ref(db, DB_ROOT + "/catalog/items/" + itemId), { image: null }), 15000);
         toast("Bild gelöscht.");
       }
     }catch(e){
       console.error("Bild löschen", e);
-      if(!still) toast("Bild konnte nicht gelöscht werden: " + (e.code || e.message || e), "bad");
+      if(!still) toast(bildFehler(e) || ("Bild konnte nicht gelöscht werden: " + (e.code || e.message || e)), "bad");
     }finally{
       if(!still){ state.uploading = null; render(); }
     }
@@ -1236,10 +1255,16 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
   function bildBlock(it){
     const laeuft = state.uploading === it.id;
     if(laeuft){
-      return h`<div class="img-block"><div class="img-busy"><span class="spinner"></span>Bild wird verarbeitet …</div></div>`;
+      return h`<div class="img-block">
+        <div class="img-busy"><span class="spinner"></span>Bild wird hochgeladen …</div>
+        <button class="btn btn-outline btn-sm" data-act="img-cancel">Abbrechen</button>
+      </div>`;
     }
+    const fehler = state.imageError
+      ? h`<div class="banner" style="margin-bottom:12px;">${esc(state.imageError)}<button data-act="img-clear-error">Ausblenden</button></div>`
+      : "";
     if(it.image && it.image.url){
-      return h`
+      return fehler + h`
         <div class="img-block">
           <button class="img-thumb" data-act="img-open" data-id="${it.id}" aria-label="Bild vergrössern">
             <img src="${esc(it.image.url)}" alt="${esc(it.name)}" loading="lazy">
@@ -1250,7 +1275,7 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
           </div>
         </div>`;
     }
-    return h`
+    return fehler + h`
       <button class="img-add" data-act="img-pick" data-id="${it.id}">
         ${ICONS.camera}<span>Bild hinzufügen</span>
       </button>`;
@@ -2321,6 +2346,23 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
       }
     }
 
+    // 3b. Bildspeicher
+    if(storage){
+      try{
+        const probe = sRef(storage, "service-material/_pruefung/probe.txt");
+        await withTimeout(uploadBytes(probe, new Blob(["ok"], {type:"text/plain"}), {contentType:"text/plain"}), 15000);
+        try{ await withTimeout(deleteObject(probe), 10000); }catch(e){}
+        out.push({ok:true, title:"Bildspeicher", txt:"Storage funktioniert"});
+      }catch(e){
+        out.push({ok:false, optional:true, title:"Bildspeicher (optional)",
+                  txt:String(e.code || e.message || e),
+                  hint: bildFehler(e) || "Nur für Artikelbilder nötig. Konsole → Build → Storage → Jetzt starten, danach storage.rules veröffentlichen."});
+      }
+    }else{
+      out.push({ok:false, optional:true, title:"Bildspeicher (optional)", txt:"nicht eingerichtet",
+                hint:"Nur für Artikelbilder nötig. Konsole → Build → Storage → Jetzt starten."});
+    }
+
     // 4. Katalog – nur für das Anlegen von Material nötig
     let boxCount = null;
     try{
@@ -2622,6 +2664,8 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
       }
 
       case "img-pick": bildWaehlen(id); break;
+      case "img-cancel": state.uploading = null; render(); toast("Vorgang abgebrochen."); break;
+      case "img-clear-error": state.imageError = ""; render(); break;
       case "img-delete": bildLoeschen(id, false); break;
       case "img-open": bildGross(id); break;
       case "img-close": bildGrossZu(); break;
