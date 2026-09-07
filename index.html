@@ -6,7 +6,7 @@
 <title>Materiallager</title>
 <meta name="description" content="Material im Servicefahrzeug scannen, entnehmen und live nachverfolgen.">
 <meta name="theme-color" content="#090B0F">
-<meta name="app-version" content="3.7">
+<meta name="app-version" content="3.8">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -572,6 +572,9 @@
     border-radius:13px; background:var(--surface-2); display:flex; align-items:center; justify-content:center;}
   .lb-close svg{width:19px; height:19px; stroke:var(--text); fill:none;}
 
+
+  .lb-busy{display:flex; align-items:center; gap:12px; color:var(--muted); font-size:13.5px;}
+
 </style>
 </head>
 <body>
@@ -586,7 +589,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import { getDatabase, ref, get, set, update, remove, push, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-storage.js";
 
 (function(){
   "use strict";
@@ -604,11 +606,11 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
     appId: "1:934985638005:web:fd330a5ca3eb335580983c"
   };
 
-  const APP_VERSION = "3.7";
+  const APP_VERSION = "3.8";
   const DB_ROOT = "materiallager";
   const PROBE_ID = "_pruefung";
   const LOCAL_PREFIX = "materiallager:device:v3:";
-  let firebaseApp = null, db = null, auth = null, storage = null;
+  let firebaseApp = null, db = null, auth = null;
 
   function firebaseConfigured(){
     return firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("HIER_") &&
@@ -794,7 +796,7 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
     catalogFromCache: true,
     authOk: false, authError: "", errorCode: "", sendError: "", diag: null, diagRunning: false,
     connKnown: false, catalogDenied: false, flash: null, groupOpen: {}, refillGroup: false, boxCat: "",
-    uploading: null, imageError: ""
+    uploading: null, imageError: "", imageCache: {}
   };
 
   const boxById  = id => state.boxes.find(b=>b.id===id);
@@ -886,12 +888,6 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
     firebaseApp = initializeApp(firebaseConfig);
     db = getDatabase(firebaseApp);
     auth = getAuth(firebaseApp);
-    try{
-      storage = getStorage(firebaseApp);
-      // Standard sind bis zu 10 Minuten stille Wiederholversuche – viel zu lang.
-      storage.maxUploadRetryTime = 20000;
-      storage.maxOperationRetryTime = 15000;
-    }catch(e){ storage = null; console.warn("Storage nicht verfügbar", e); }
 
     // Anmeldung darf scheitern, ohne dass die ganze App stehen bleibt.
     try{
@@ -1128,27 +1124,41 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
 
   /* ================================================================
      Artikelbild — genau ein Bild pro Artikel
-     Storage-Pfad: service-material/articles/{artikelId}/image.jpg
-     Referenz im Artikel: image = { path, url, name, updatedAt }
+
+     Bewusst OHNE Firebase Storage: das verlangt den kostenpflichtigen
+     Blaze-Tarif. Stattdessen liegen die Bilder in der Realtime Database,
+     die im Gratis-Tarif 1 GB umfasst:
+
+       catalog/items/{id}/image = { thumb, bytes, updatedAt }   Vorschau, ~3 KB
+       images/{id}              = vollständiges Bild als Data-URL
+
+     Die Vorschau ist klein genug, um mit dem Katalog mitzulaufen. Das
+     grosse Bild wird erst geladen, wenn es jemand öffnet.
      ================================================================ */
   const BILD_TYPEN = ["image/jpeg","image/jpg","image/png","image/webp"];
-  const BILD_MAX_MB = 8;
-  const bildPfad = itemId => "service-material/articles/" + itemId + "/image.jpg";
+  const BILD_MAX_MB = 12;
+  const BILD_KANTE = 1000;      // Langseite des gespeicherten Bildes
+  const BILD_QUALI = 0.72;
+  const THUMB_KANTE = 96;
+  const BILD_MAX_BYTES = 700000; // Sicherheitsgrenze pro Bild in der Datenbank
 
-  /* Vor dem Hochladen verkleinern – spart Datenvolumen im Fahrzeug. */
-  function bildVerkleinern(file, maxKante){
+  /* Verkleinern im Browser – spart Datenvolumen und Speicherplatz. */
+  function bildSkalieren(file, maxKante, quali){
     return new Promise((res, rej)=>{
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = ()=>{
         URL.revokeObjectURL(url);
-        let {width:w, height:hh} = img;
+        let w = img.width, hh = img.height;
         const f = Math.min(1, maxKante / Math.max(w, hh));
-        w = Math.round(w * f); hh = Math.round(hh * f);
+        w = Math.max(1, Math.round(w * f)); hh = Math.max(1, Math.round(hh * f));
         const cv = document.createElement("canvas");
         cv.width = w; cv.height = hh;
-        cv.getContext("2d").drawImage(img, 0, 0, w, hh);
-        cv.toBlob(b => b ? res(b) : rej(new Error("Bild konnte nicht verarbeitet werden")), "image/jpeg", 0.82);
+        const ctx = cv.getContext("2d");
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(0,0,w,hh);
+        ctx.drawImage(img, 0, 0, w, hh);
+        try{ res(cv.toDataURL("image/jpeg", quali)); }
+        catch(e){ rej(new Error("Bild konnte nicht verarbeitet werden")); }
       };
       img.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error("Bild konnte nicht gelesen werden")); };
       img.src = url;
@@ -1157,14 +1167,14 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
 
   function bildFehler(e){
     const code = String((e && e.code) || (e && e.message) || e).toLowerCase();
-    if(code.indexOf("unauthorized") >= 0 || code.indexOf("permission") >= 0)
-      return "Die Storage-Regeln lassen das Speichern nicht zu. Firebase-Konsole → Build → Storage → Reiter Regeln → Inhalt von storage.rules einsetzen und veröffentlichen.";
-    if(code.indexOf("retry-limit") >= 0 || code.indexOf("zeitüber") >= 0 || code.indexOf("timeout") >= 0 || code.indexOf("unknown") >= 0)
-      return "Der Speicher antwortet nicht. Sehr wahrscheinlich ist Firebase Storage noch nicht aktiviert: Konsole → Build → Storage → Jetzt starten. Danach die Regeln veröffentlichen.";
-    if(code.indexOf("bucket-not-found") >= 0 || code.indexOf("project-not-found") >= 0)
-      return "Der Speicherordner des Projekts existiert noch nicht. Konsole → Build → Storage → Jetzt starten.";
-    if(code.indexOf("quota") >= 0) return "Das Speicherkontingent des Projekts ist erschöpft.";
-    if(code.indexOf("network") >= 0 || code.indexOf("offline") >= 0) return "Keine Verbindung – Bild später nochmals hochladen.";
+    if(code.indexOf("permission") >= 0 || code.indexOf("denied") >= 0)
+      return "Die Datenbankregeln lassen das Speichern von Bildern nicht zu. Unter Einstellungen → Verbindung prüfen stehen die passenden Regeln zum Kopieren.";
+    if(code.indexOf("zeitüber") >= 0 || code.indexOf("timeout") >= 0)
+      return "Die Datenbank hat nicht rechtzeitig geantwortet. Verbindung prüfen und nochmals versuchen.";
+    if(code.indexOf("too large") >= 0 || code.indexOf("gross") >= 0)
+      return "Das Bild ist auch nach dem Verkleinern zu gross. Bitte ein anderes Foto verwenden.";
+    if(code.indexOf("network") >= 0 || code.indexOf("offline") >= 0)
+      return "Keine Verbindung – Bild später nochmals hochladen.";
     return "";
   }
 
@@ -1192,32 +1202,34 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
     if(file.size > BILD_MAX_MB * 1024 * 1024){
       toast("Das Bild ist grösser als " + BILD_MAX_MB + " MB.","bad"); return;
     }
-    if(!storage){ toast("Firebase Storage ist nicht verfügbar.","bad"); return; }
     if(!requireLive()) return;
     if(state.uploading) return;
 
     state.uploading = itemId; state.imageError = ""; render();
-    const altPfad = it.image && it.image.path;
     try{
-      const blob = await withTimeout(bildVerkleinern(file, 1400), 20000);
-      const pfad = bildPfad(itemId);
-      const ziel = sRef(storage, pfad);
-      await withTimeout(uploadBytes(ziel, blob, {contentType:"image/jpeg", cacheControl:"public,max-age=86400"}), 30000);
-      const url = await withTimeout(getDownloadURL(ziel), 15000);
+      let voll = await withTimeout(bildSkalieren(file, BILD_KANTE, BILD_QUALI), 25000);
+      // Notfalls stärker komprimieren, damit der Datensatz schlank bleibt.
+      if(voll.length > BILD_MAX_BYTES) voll = await bildSkalieren(file, 800, 0.6);
+      if(voll.length > BILD_MAX_BYTES) voll = await bildSkalieren(file, 640, 0.5);
+      if(voll.length > BILD_MAX_BYTES) throw new Error("Bild zu gross");
+      const thumb = await bildSkalieren(file, THUMB_KANTE, 0.5);
 
       if(!itemById(itemId)) throw new Error("Der Artikel wurde zwischenzeitlich gelöscht.");
-      await withTimeout(update(ref(db, DB_ROOT + "/catalog/items/" + itemId), {
-        image: { path: pfad, url: url, name: file.name || "image.jpg", updatedAt: Date.now() }
-      }), 15000);
 
-      // Ein anderer alter Pfad darf nicht liegen bleiben.
-      if(altPfad && altPfad !== pfad){
-        try{ await deleteObject(sRef(storage, altPfad)); }catch(e){}
-      }
+      // Vorschau und Bild in einem Schritt – entweder beides oder nichts.
+      const meta = { thumb: thumb, bytes: voll.length, updatedAt: Date.now() };
+      const paket = {};
+      paket["catalog/items/" + itemId + "/image"] = meta;
+      paket["images/" + itemId] = voll;
+      await withTimeout(update(ref(db, DB_ROOT), paket), 25000);
+
+      state.imageCache[itemId] = voll;
+      const jetzt = itemById(itemId);
+      if(jetzt) jetzt.image = meta;   // sofort sichtbar, der Listener bestätigt gleich darauf
       if(navigator.vibrate) navigator.vibrate(16);
-      toast("Bild gespeichert.");
+      toast("Bild gespeichert (" + Math.round(voll.length/1024) + " KB).");
     }catch(e){
-      console.error("Bild-Upload", e);
+      console.error("Bild speichern", e);
       const hinweis = bildFehler(e) || ("Bild nicht gespeichert: " + (e.code || e.message || e));
       state.imageError = hinweis;
       toast(hinweis, "bad");
@@ -1228,22 +1240,23 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
 
   async function bildLoeschen(itemId, still){
     const it = itemById(itemId);
-    const bild = it && it.image;
-    if(!bild) return;
     if(!still){
+      if(!it || !it.image) return;
       if(!confirm("Bild von \"" + it.name + "\" wirklich löschen?")) return;
       if(!requireLive()) return;
       state.uploading = itemId; render();
     }
     try{
-      if(storage && bild.path){
-        try{ await withTimeout(deleteObject(sRef(storage, bild.path)), 15000); }
-        catch(e){ if(String(e.code||"").indexOf("object-not-found") < 0) throw e; }
+      if(db){
+        const paket = {};
+        paket["catalog/items/" + itemId + "/image"] = null;
+        paket["images/" + itemId] = null;
+        await withTimeout(update(ref(db, DB_ROOT), paket), 15000);
       }
-      if(!still && db){
-        await withTimeout(update(ref(db, DB_ROOT + "/catalog/items/" + itemId), { image: null }), 15000);
-        toast("Bild gelöscht.");
-      }
+      delete state.imageCache[itemId];
+      const jetzt = itemById(itemId);
+      if(jetzt) delete jetzt.image;
+      if(!still) toast("Bild gelöscht.");
     }catch(e){
       console.error("Bild löschen", e);
       if(!still) toast(bildFehler(e) || ("Bild konnte nicht gelöscht werden: " + (e.code || e.message || e)), "bad");
@@ -1252,22 +1265,34 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
     }
   }
 
+  /* Das grosse Bild wird erst beim Öffnen geholt. */
+  async function bildLaden(itemId){
+    if(state.imageCache[itemId]) return state.imageCache[itemId];
+    const it = itemById(itemId);
+    if(it && it.image && it.image.url) return it.image.url;   // Altbestand aus Storage
+    if(!db) return null;
+    const snap = await withTimeout(get(ref(db, DB_ROOT + "/images/" + itemId)), 15000);
+    const val = snap.val();
+    if(val) state.imageCache[itemId] = val;
+    return val;
+  }
+
   function bildBlock(it){
-    const laeuft = state.uploading === it.id;
-    if(laeuft){
+    if(state.uploading === it.id){
       return h`<div class="img-block">
-        <div class="img-busy"><span class="spinner"></span>Bild wird hochgeladen …</div>
+        <div class="img-busy"><span class="spinner"></span>Bild wird gespeichert …</div>
         <button class="btn btn-outline btn-sm" data-act="img-cancel">Abbrechen</button>
       </div>`;
     }
     const fehler = state.imageError
       ? h`<div class="banner" style="margin-bottom:12px;">${esc(state.imageError)}<button data-act="img-clear-error">Ausblenden</button></div>`
       : "";
-    if(it.image && it.image.url){
+    const vorschau = bildVorschau(it);
+    if(vorschau){
       return fehler + h`
         <div class="img-block">
           <button class="img-thumb" data-act="img-open" data-id="${it.id}" aria-label="Bild vergrössern">
-            <img src="${esc(it.image.url)}" alt="${esc(it.name)}" loading="lazy">
+            <img src="${esc(vorschau)}" alt="${esc(it.name)}">
           </button>
           <div class="img-actions">
             <button class="btn btn-outline btn-sm" data-act="img-pick" data-id="${it.id}">Bild ersetzen</button>
@@ -1280,19 +1305,29 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
         ${ICONS.camera}<span>Bild hinzufügen</span>
       </button>`;
   }
+  function bildVorschau(it){
+    if(!it || !it.image) return null;
+    return state.imageCache[it.id] || it.image.thumb || it.image.url || null;
+  }
 
-  function bildGross(itemId){
+  async function bildGross(itemId){
     const it = itemById(itemId);
-    if(!it || !it.image || !it.image.url) return;
+    if(!it || !it.image) return;
     const lb = document.getElementById("lightbox");
-    lb.innerHTML = `
-      <button class="lb-close" data-act="img-close" aria-label="Schliessen">
+    const schliessen = `<button class="lb-close" data-act="img-close" aria-label="Schliessen">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
-      <img src="${esc(it.image.url)}" alt="${esc(it.name)}">
-      <p>${esc(it.name)}</p>`;
+      </button>`;
+    lb.innerHTML = schliessen + `<div class="lb-busy"><span class="spinner"></span>Bild wird geladen …</div>`;
     lb.classList.add("open");
     document.body.style.overflow = "hidden";
+    try{
+      const data = await bildLaden(itemId);
+      if(!lb.classList.contains("open")) return;
+      if(!data) throw new Error("Bild nicht gefunden");
+      lb.innerHTML = schliessen + `<img src="${esc(data)}" alt="${esc(it.name)}"><p>${esc(it.name)}</p>`;
+    }catch(e){
+      lb.innerHTML = schliessen + `<p>${esc(bildFehler(e) || "Bild konnte nicht geladen werden.")}</p>`;
+    }
   }
   function bildGrossZu(){
     const lb = document.getElementById("lightbox");
@@ -1377,7 +1412,7 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
       <div class="cable-row lv-${st.level}${picked?" picked":""}${flash}">
         <div class="row-main">
           ${opts.pick ? `<input type="checkbox" class="pick-box" data-pick="${it.id}" ${picked?"checked":""} ${st.stock<=0?"disabled":""} aria-label="${esc(it.name)} auswählen">` : ""}
-          ${it.image && it.image.url ? `<img class="row-thumb" src="${esc(it.image.url)}" alt="" loading="lazy">` : ""}
+          ${bildVorschau(it) ? `<img class="row-thumb" src="${esc(bildVorschau(it))}" alt="">` : ""}
           <button class="grow" data-act="open-item" data-id="${it.id}">
             <p class="cable-name">${esc(it.name)}</p>
             <span class="cable-sub">
@@ -2250,7 +2285,7 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
         movements: { ".indexOn": ["ts"] }
       }
     }
-  }, null, 2);
+  }, null, 2);   // deckt Katalog, Bewegungen und Bilder ab
 
   function withTimeout(promise, ms){
     return Promise.race([
@@ -2346,21 +2381,16 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
       }
     }
 
-    // 3b. Bildspeicher
-    if(storage){
-      try{
-        const probe = sRef(storage, "service-material/_pruefung/probe.txt");
-        await withTimeout(uploadBytes(probe, new Blob(["ok"], {type:"text/plain"}), {contentType:"text/plain"}), 15000);
-        try{ await withTimeout(deleteObject(probe), 10000); }catch(e){}
-        out.push({ok:true, title:"Bildspeicher", txt:"Storage funktioniert"});
-      }catch(e){
-        out.push({ok:false, optional:true, title:"Bildspeicher (optional)",
-                  txt:String(e.code || e.message || e),
-                  hint: bildFehler(e) || "Nur für Artikelbilder nötig. Konsole → Build → Storage → Jetzt starten, danach storage.rules veröffentlichen."});
-      }
-    }else{
-      out.push({ok:false, optional:true, title:"Bildspeicher (optional)", txt:"nicht eingerichtet",
-                hint:"Nur für Artikelbilder nötig. Konsole → Build → Storage → Jetzt starten."});
+    // 3b. Bildspeicher (Datenbank, kein kostenpflichtiges Storage nötig)
+    try{
+      const probe = ref(db, DB_ROOT + "/images/_pruefung");
+      await withTimeout(set(probe, "ok"), 12000);
+      await withTimeout(remove(probe), 12000);
+      out.push({ok:true, title:"Bildspeicher", txt:"Bilder können gespeichert werden"});
+    }catch(e){
+      out.push({ok:false, optional:true, title:"Bildspeicher (optional)",
+                txt:String(e.code || e.message || e),
+                hint:"Nur für Artikelbilder nötig. Die Regeln unten geben den Zweig materiallager/images frei – Firebase Storage und ein kostenpflichtiger Tarif werden nicht gebraucht."});
     }
 
     // 4. Katalog – nur für das Anlegen von Material nötig
